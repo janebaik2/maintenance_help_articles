@@ -1,0 +1,378 @@
+{
+  "summary": {
+    "auditDate": "2026-06-09",
+    "totalArticles": 10,
+    "ok": 2,
+    "withDiscrepancies": 6,
+    "withMissingContent": 2,
+    "totalMissingContent": 3,
+    "withBrokenLinks": 3,
+    "noGithubMatch": 1,
+    "errors": 0,
+    "totalDiscrepancies": 8,
+    "totalBrokenLinks": 4,
+    "criticalDiscrepancies": 2,
+    "durationSeconds": 142,
+    "staleArticles": 6,
+    "withThirdPartyIssues": 4,
+    "totalThirdPartyIssues": 6
+  },
+  "articles": [
+    {
+      "id": "1001",
+      "title": "How to configure Single Sign-On (SSO)",
+      "url": "https://help.drata.com/en/articles/sso-setup",
+      "updatedAt": 1704067200,
+      "githubFilesChecked": [
+        "src/auth/sso/config.ts",
+        "src/auth/sso/providers.ts",
+        "docs/sso.md"
+      ],
+      "missingContent": [
+        {
+          "feature": "Just-in-Time (JIT) provisioning",
+          "githubEvidence": "enableJitProvisioning: boolean \u2014 added in src/auth/sso/config.ts",
+          "githubFile": "src/auth/sso/config.ts",
+          "suggestedAddition": "Add a section explaining that JIT provisioning can be enabled to automatically create Drata user accounts on first SSO login, removing the need to pre-invite each user.",
+          "priority": "high"
+        },
+        {
+          "feature": "SSO enforcement by domain",
+          "githubEvidence": "enforcedDomains: string[] \u2014 allows requiring SSO for specific email domains",
+          "githubFile": "src/auth/sso/config.ts",
+          "suggestedAddition": "Document the domain enforcement option that forces all users with matching email domains to authenticate via SSO only.",
+          "priority": "medium"
+        }
+      ],
+      "discrepancies": [
+        {
+          "field": "Navigation path",
+          "articleSays": "Navigate to Settings > Security > Single Sign-On",
+          "githubSays": "The 'Security' tab was renamed to 'Authentication' in a recent release. The correct menu path is now Settings > Authentication > Single Sign-On.",
+          "action": "Update text",
+          "suggestedFix": "Navigate to **Settings > Authentication > Single Sign-On**.",
+          "githubFile": "src/auth/sso/config.ts",
+          "severity": "critical",
+          "explanation": "Users following the article will not find the SSO settings page because the menu label changed."
+        },
+        {
+          "field": "Supported providers list",
+          "articleSays": "Drata supports Okta, OneLogin, and Azure AD",
+          "githubSays": "Three additional SSO providers have been added since this article was written: Google Workspace, JumpCloud, and PingIdentity.",
+          "action": "Add missing options",
+          "suggestedFix": "Drata supports the following SSO providers: Okta, OneLogin, Azure AD, Google Workspace, JumpCloud, and PingIdentity.",
+          "githubFile": "src/auth/sso/providers.ts",
+          "severity": "medium",
+          "explanation": "Customers using Google Workspace, JumpCloud, or PingIdentity may not realize Drata supports their provider."
+        }
+      ],
+      "brokenLinks": [
+        {
+          "url": "https://support.okta.com/help/s/article/saml-setup-legacy",
+          "status": 404,
+          "ok": false,
+          "broken": true
+        }
+      ],
+      "thirdPartyIssues": [
+        {
+          "term": "Azure Active Directory",
+          "context": "Drata supports Okta, OneLogin, and Azure Active Directory for SSO.",
+          "product": "Microsoft",
+          "currentTerm": "Microsoft Entra ID",
+          "suggestedFix": "Replace 'Azure Active Directory' with 'Microsoft Entra ID' throughout the article. Microsoft rebranded Azure AD to Entra ID in 2023.",
+          "severity": "high",
+          "explanation": "Microsoft rebranded Azure Active Directory to Microsoft Entra ID in July 2023; the old name is still understood but will confuse users searching for the product."
+        }
+      ],
+      "status": "multiple",
+      "auditedAt": "2026-06-09T02:14:33.000Z",
+      "stale": true
+    },
+    {
+      "id": "1002",
+      "title": "Setting up automated evidence collection",
+      "url": "https://help.drata.com/en/articles/automated-evidence",
+      "updatedAt": 1709251200,
+      "githubFilesChecked": [
+        "src/evidence/collection.ts",
+        "src/evidence/schedule.ts"
+      ],
+      "missingContent": [
+        {
+          "feature": "Evidence collection pause / resume",
+          "githubEvidence": "pauseCollection(integrationId), resumeCollection(integrationId) \u2014 added to collection.ts",
+          "githubFile": "src/evidence/collection.ts",
+          "suggestedAddition": "Document that individual integrations can be paused and resumed without disabling the entire connection, useful during maintenance windows.",
+          "priority": "medium"
+        }
+      ],
+      "discrepancies": [
+        {
+          "field": "Collection frequency options",
+          "articleSays": "Evidence can be collected daily, weekly, or monthly",
+          "githubSays": "Two new collection frequencies were added: hourly (for high-frequency monitoring) and quarterly (for periodic compliance cycles).",
+          "action": "Add missing options",
+          "suggestedFix": "Evidence can be collected on the following schedules: hourly, daily, weekly, monthly, or quarterly. Select the frequency that best matches your compliance requirements.",
+          "githubFile": "src/evidence/schedule.ts",
+          "severity": "high",
+          "explanation": "Compliance teams looking for hourly or quarterly collection won't know it's available."
+        }
+      ],
+      "brokenLinks": [],
+      "thirdPartyIssues": [],
+      "status": "discrepancies",
+      "auditedAt": "2026-06-09T02:15:01.000Z",
+      "stale": true
+    },
+    {
+      "id": "1003",
+      "title": "Connecting your AWS account to Drata",
+      "url": "https://help.drata.com/en/articles/aws-integration",
+      "updatedAt": 1710460800,
+      "githubFilesChecked": [
+        "src/integrations/aws/connector.ts",
+        "src/integrations/aws/permissions.json",
+        "docs/integrations/aws.md"
+      ],
+      "missingContent": [],
+      "discrepancies": [
+        {
+          "field": "Required IAM permissions",
+          "articleSays": "Attach the ReadOnlyAccess managed policy",
+          "githubSays": "Drata no longer uses AWS's broad ReadOnlyAccess policy. It now requires a custom least-privilege policy with 22 specific permissions for security compliance reasons.",
+          "action": "Replace screenshot + update steps",
+          "suggestedFix": "Instead of attaching the ReadOnlyAccess managed policy, create and attach Drata's custom IAM policy. Download the policy JSON from the Connections setup page in Drata, then create a new IAM policy in AWS using that file.",
+          "githubFile": "src/integrations/aws/permissions.json",
+          "severity": "critical",
+          "explanation": "Customers following the old instructions will grant overly broad AWS access, which is a security risk and may fail Drata's own permission validation."
+        },
+        {
+          "field": "CloudFormation stack name",
+          "articleSays": "Name the stack 'drata-integration'",
+          "githubSays": "The required stack name changed to 'drata-aws-connector'. Using the old name will cause the setup to fail.",
+          "action": "Update text",
+          "suggestedFix": "When prompted for a stack name, enter **drata-aws-connector** (do not change this value).",
+          "githubFile": "src/integrations/aws/connector.ts",
+          "severity": "high",
+          "explanation": "Wrong stack name will cause the integration setup to fail with no clear error message."
+        }
+      ],
+      "brokenLinks": [
+        {
+          "url": "https://console.aws.amazon.com/iam/home#/policies/arn:aws:iam::aws:policy/ReadOnlyAccess$jsonEditor",
+          "status": 403,
+          "ok": false,
+          "broken": true,
+          "error": "Forbidden"
+        }
+      ],
+      "thirdPartyIssues": [
+        {
+          "term": "AWS Management Console > Services > CloudFormation",
+          "context": "In the AWS Management Console, navigate to Services > CloudFormation to create the stack.",
+          "product": "AWS",
+          "currentTerm": "AWS Console search bar or direct URL — the top-level Services menu was removed in the AWS Console redesign.",
+          "suggestedFix": "In the AWS Console, search for 'CloudFormation' in the search bar at the top, or navigate directly to console.aws.amazon.com/cloudformation.",
+          "severity": "high",
+          "explanation": "AWS redesigned the console navigation in 2023, removing the top-level 'Services' dropdown menu in favor of a unified search bar."
+        },
+        {
+          "term": "ReadOnlyAccess managed policy",
+          "context": "In IAM, attach the ReadOnlyAccess managed policy to the Drata role.",
+          "product": "AWS",
+          "currentTerm": "Custom least-privilege IAM policy (also flagged as a discrepancy from GitHub)",
+          "suggestedFix": "Do not use the AWS-managed ReadOnlyAccess policy. Instead, use Drata's custom IAM policy JSON available on the Connections setup page.",
+          "severity": "critical",
+          "explanation": "Drata migrated away from ReadOnlyAccess to a custom least-privilege policy for security compliance reasons."
+        }
+      ],
+      "status": "multiple",
+      "auditedAt": "2026-06-09T02:15:44.000Z",
+      "stale": true
+    },
+    {
+      "id": "1004",
+      "title": "Understanding SOC 2 trust service criteria",
+      "url": "https://help.drata.com/en/articles/soc2-criteria",
+      "updatedAt": 1712140800,
+      "githubFilesChecked": [
+        "docs/compliance/soc2.md",
+        "src/frameworks/soc2/criteria.ts"
+      ],
+      "missingContent": [],
+      "discrepancies": [],
+      "brokenLinks": [],
+      "thirdPartyIssues": [],
+      "status": "ok",
+      "auditedAt": "2026-06-09T02:16:02.000Z",
+      "stale": true
+    },
+    {
+      "id": "1005",
+      "title": "Inviting team members and managing roles",
+      "url": "https://help.drata.com/en/articles/user-management",
+      "updatedAt": 1706745600,
+      "githubFilesChecked": [
+        "src/users/roles.ts",
+        "src/users/invite.ts"
+      ],
+      "missingContent": [],
+      "discrepancies": [
+        {
+          "field": "Available roles",
+          "articleSays": "Users can be assigned: Administrator, Auditor, or Viewer",
+          "githubSays": "Two new roles have been added \u2014 Owner and Reviewer \u2014 and the Viewer role has been renamed to Read Only in new accounts.",
+          "action": "Update role list",
+          "suggestedFix": "Users can be assigned one of the following roles: Owner, Administrator, Auditor, Reviewer, or Read Only. The Owner role has full account control; Read Only provides view-only access.",
+          "githubFile": "src/users/roles.ts",
+          "severity": "high",
+          "explanation": "Article is missing the Owner and Reviewer roles and uses the deprecated Viewer role name."
+        }
+      ],
+      "brokenLinks": [],
+      "thirdPartyIssues": [],
+      "status": "discrepancies",
+      "auditedAt": "2026-06-09T02:16:15.000Z",
+      "stale": true
+    },
+    {
+      "id": "1006",
+      "title": "Generating your first audit-ready report",
+      "url": "https://help.drata.com/en/articles/audit-reports",
+      "updatedAt": 1746057600,
+      "githubFilesChecked": [
+        "src/reports/generator.ts",
+        "src/reports/templates/"
+      ],
+      "missingContent": [],
+      "discrepancies": [],
+      "brokenLinks": [
+        {
+          "url": "https://old-docs.drata.com/reports/sample.pdf",
+          "status": 404,
+          "ok": false,
+          "broken": true
+        },
+        {
+          "url": "https://www.aicpa.org/resources/download/soc-2-report-sample",
+          "status": 0,
+          "ok": false,
+          "broken": true,
+          "error": "Request timed out"
+        }
+      ],
+      "thirdPartyIssues": [],
+      "status": "broken_links",
+      "auditedAt": "2026-06-09T02:16:50.000Z",
+      "stale": false
+    },
+    {
+      "id": "1007",
+      "title": "Connecting GitHub for code repository monitoring",
+      "url": "https://help.drata.com/en/articles/github-integration",
+      "updatedAt": 1751328000,
+      "githubFilesChecked": [
+        "src/integrations/github/connector.ts",
+        "src/integrations/github/scopes.ts"
+      ],
+      "missingContent": [],
+      "discrepancies": [
+        {
+          "field": "Required OAuth scopes",
+          "articleSays": "Drata requires: repo, read:org, read:user",
+          "githubSays": "A fourth OAuth scope was added \u2014 read:audit_log \u2014 to support the new audit trail feature. Connections authorized before this change will need to be reauthorized.",
+          "action": "Update scope list",
+          "suggestedFix": "Drata requires the following OAuth scopes: repo, read:org, read:user, and read:audit_log. If you connected GitHub before June 2024, reauthorize the connection to grant the new scope.",
+          "githubFile": "src/integrations/github/scopes.ts",
+          "severity": "medium",
+          "explanation": "Missing scope will cause audit trail features to fail for users who authorized before the scope was added."
+        }
+      ],
+      "brokenLinks": [],
+      "thirdPartyIssues": [],
+      "status": "discrepancies",
+      "auditedAt": "2026-06-09T02:17:10.000Z",
+      "stale": false
+    },
+    {
+      "id": "1008",
+      "title": "HIPAA compliance checklist for healthcare organizations",
+      "url": "https://help.drata.com/en/articles/hipaa-checklist",
+      "updatedAt": 1756684800,
+      "githubFilesChecked": [],
+      "missingContent": [],
+      "discrepancies": [],
+      "brokenLinks": [],
+      "noGithubMatchReason": "title_too_vague",
+      "thirdPartyIssues": [],
+      "status": "no_github_match",
+      "auditedAt": "2026-06-09T02:17:20.000Z",
+      "stale": false
+    },
+    {
+      "id": "1009",
+      "title": "Setting up Slack notifications for compliance alerts",
+      "url": "https://help.drata.com/en/articles/slack-notifications",
+      "updatedAt": 1759363200,
+      "githubFilesChecked": [
+        "src/integrations/slack/notify.ts",
+        "src/integrations/slack/config.ts"
+      ],
+      "missingContent": [],
+      "discrepancies": [],
+      "brokenLinks": [],
+      "thirdPartyIssues": [
+        {
+          "term": "Slack App Directory",
+          "context": "To install the Drata app, visit the Slack App Directory and search for 'Drata'.",
+          "product": "Slack",
+          "currentTerm": "Slack Marketplace",
+          "suggestedFix": "To install the Drata app, visit the Slack Marketplace (slack.com/marketplace) and search for 'Drata'.",
+          "severity": "medium",
+          "explanation": "Slack rebranded the App Directory to Slack Marketplace in 2024; the old name still redirects but the UI label no longer matches."
+        },
+        {
+          "term": "Workspace Settings > Notifications > Apps",
+          "context": "Navigate to Workspace Settings > Notifications > Apps to manage which apps can post to channels.",
+          "product": "Slack",
+          "currentTerm": "Settings & administration > Manage apps",
+          "suggestedFix": "In Slack, open the menu next to your workspace name and go to Settings & administration > Manage apps to control which apps can post to channels.",
+          "severity": "high",
+          "explanation": "Slack reorganized its admin navigation in the 2023 redesign; the old Workspace Settings > Notifications > Apps path no longer exists."
+        }
+      ],
+      "status": "third_party",
+      "auditedAt": "2026-06-09T02:17:35.000Z",
+      "stale": false
+    },
+    {
+      "id": "1010",
+      "title": "Managing vendor risk assessments",
+      "url": "https://help.drata.com/en/articles/vendor-risk",
+      "updatedAt": 1713139200,
+      "githubFilesChecked": [
+        "src/vendors/risk.ts",
+        "src/vendors/questionnaire.ts"
+      ],
+      "missingContent": [],
+      "discrepancies": [
+        {
+          "field": "Risk score tiers",
+          "articleSays": "Vendors are scored Low, Medium, or High based on their questionnaire responses",
+          "githubSays": "The risk scoring system expanded from 3 tiers to 5. The new tiers are: Critical, High, Medium, Low, and Minimal.",
+          "action": "Update risk tier list",
+          "suggestedFix": "Vendors are assigned one of five risk tiers based on their questionnaire responses: Critical, High, Medium, Low, or Minimal. Critical vendors require immediate remediation; Minimal vendors pose negligible risk.",
+          "githubFile": "src/vendors/risk.ts",
+          "severity": "medium",
+          "explanation": "Article uses old 3-tier system; users won't understand why their vendor shows 'Critical' or 'Minimal' risk."
+        }
+      ],
+      "brokenLinks": [],
+      "thirdPartyIssues": [],
+      "status": "discrepancies",
+      "auditedAt": "2026-06-09T02:17:55.000Z",
+      "stale": true
+    }
+  ]
+}

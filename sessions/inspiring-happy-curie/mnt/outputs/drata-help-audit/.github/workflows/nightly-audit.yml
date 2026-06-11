@@ -1,0 +1,109 @@
+name: Nightly Help Center Audit
+
+on:
+  schedule:
+    # Runs every night at 2 AM UTC (6 PM PT / 9 PM ET)
+    # Adjust to your preferred time: https://crontab.guru
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    # Allows manual trigger from GitHub Actions UI
+    inputs:
+      limit:
+        description: 'Limit to N articles (leave blank for all 925)'
+        required: false
+        type: string
+
+jobs:
+  audit:
+    name: Audit Help Center Articles
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # 925 articles takes ~60-90 min
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run audit
+        env:
+          INTERCOM_TOKEN: ${{ secrets.INTERCOM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.AUDIT_GITHUB_TOKEN }}
+          GITHUB_OWNER: drata
+          GITHUB_REPO: ${{ secrets.AUDIT_GITHUB_REPO }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "${{ inputs.limit }}" ]; then
+            node audit.js --limit ${{ inputs.limit }}
+          else
+            node audit.js
+          fi
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-results-${{ github.run_id }}
+          path: results/
+          retention-days: 90
+
+      - name: Post summary to job
+        if: always()
+        run: |
+          if [ -f results/latest.json ]; then
+            node -e "
+              const r = require('./results/latest.json');
+              const s = r.summary;
+              console.log('## Audit Summary');
+              console.log('| Metric | Count |');
+              console.log('|--------|-------|');
+              console.log(\`| Total articles | \${s.totalArticles} |\`);
+              console.log(\`| ✅ Clean | \${s.ok} |\`);
+              console.log(\`| ⚠️ Discrepancies | \${s.withDiscrepancies} (\${s.totalDiscrepancies} total) |\`);
+              console.log(\`| 🔴 Critical | \${s.criticalDiscrepancies} |\`);
+              console.log(\`| 🔗 Broken links | \${s.withBrokenLinks} articles (\${s.totalBrokenLinks} links) |\`);
+              console.log(\`| ❓ No GitHub match | \${s.noGithubMatch} |\`);
+              console.log(\`| Duration | \${s.durationSeconds}s |\`);
+            " >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # ── Optional: send Slack notification ────────────────────────────────────
+      # Uncomment and add SLACK_WEBHOOK_URL to your repo secrets to enable
+      #
+      # - name: Notify Slack
+      #   if: always()
+      #   run: |
+      #     if [ -f results/latest.json ]; then
+      #       node -e "
+      #         const r = require('./results/latest.json');
+      #         const s = r.summary;
+      #         const msg = {
+      #           text: \`*Help Center Audit — \${s.auditDate}*\n\` +
+      #                 \`\${s.criticalDiscrepancies > 0 ? '🔴' : '✅'} \` +
+      #                 \`\${s.totalDiscrepancies} discrepancies (\${s.criticalDiscrepancies} critical) · \` +
+      #                 \`\${s.totalBrokenLinks} broken links\`
+      #         };
+      #         require('https').request(process.env.SLACK_WEBHOOK_URL, {
+      #           method: 'POST', headers: {'Content-Type':'application/json'}
+      #         }, ()=>{}).end(JSON.stringify(msg));
+      #       "
+      #     fi
+      #   env:
+      #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      # ── Optional: send email via SendGrid ────────────────────────────────────
+      # - name: Email results
+      #   if: always()
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.sendgrid.net
+      #     server_port: 587
+      #     username: apikey
+      #     password: ${{ secrets.SENDGRID_API_KEY }}
+      #     subject: "Help Center Audit — ${{ github.run_id }}"
+      #     to: janebaik@drata.com
+      #     from: audit@drata.com
+      #     body: "Audit complete. Download results from GitHub Actions artifacts."

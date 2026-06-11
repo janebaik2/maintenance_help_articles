@@ -1,0 +1,17 @@
+{
+  "name": "drata-help-audit",
+  "version": "1.0.0",
+  "description": "Nightly audit: Intercom help center articles vs Drata GitHub codebase",
+  "main": "audit.js",
+  "scripts": {
+    "start": "node server.js",
+    "audit": "node audit.js",
+    "audit:dry": "node audit.js --dry-run",
+    "audit:test": "node audit.js --limit 10"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

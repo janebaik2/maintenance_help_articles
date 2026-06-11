@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drata Help Center Audit</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #252836;
+      --border: #2e3244;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --accent: #6c63ff;
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #eab308;
+      --low: #22c55e;
+      --ok: #10b981;
+      --link-broken: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; font-size: 14px; }
+
+    /* ── Run button + progress panel ── */
+    .run-btn {
+      background: var(--accent);
+      border: none;
+      border-radius: 7px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 20px;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .run-btn:hover:not(:disabled) { opacity: 0.85; }
+    .run-btn:disabled { background: var(--surface2); color: var(--text-muted); cursor: not-allowed; }
+    .run-btn.running { background: #1e2a1e; color: #4ade80; border: 1px solid #2d4a2d; }
+
+    .progress-panel {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: none;
+      padding: 14px 32px;
+    }
+    .progress-panel.visible { display: block; }
+    .progress-bar-track {
+      background: var(--surface2);
+      border-radius: 4px;
+      height: 6px;
+      margin-bottom: 10px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .progress-bar-fill {
+      background: var(--accent);
+      border-radius: 4px;
+      height: 100%;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    .log-box {
+      background: #0a0c12;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: #7dd3fc;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 11px;
+      height: 140px;
+      line-height: 1.6;
+      overflow-y: auto;
+      padding: 10px 14px;
+    }
+    .log-box .log-line { white-space: pre-wrap; word-break: break-all; }
+    .log-box .log-error { color: #fca5a5; }
+    .log-box .log-done { color: #4ade80; font-weight: 600; }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+    header .meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+    .summary-bar {
+      display: flex;
+      gap: 16px;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      min-width: 130px;
+    }
+    .stat .val { font-size: 28px; font-weight: 700; line-height: 1; }
+    .stat .lbl { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
+    .stat.critical .val { color: var(--critical); }
+    .stat.warn .val { color: var(--high); }
+    .stat.ok .val { color: var(--ok); }
+    .stat.muted .val { color: var(--text-muted); }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      padding: 16px 32px;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    input[type="search"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 14px;
+      font-size: 13px;
+      width: 280px;
+      outline: none;
+    }
+    input[type="search"]:focus { border-color: var(--accent); }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    .table-wrap { overflow-x: auto; padding: 0 32px 32px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 10px 14px;
+      text-align: left;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    td {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 14px;
+      vertical-align: top;
+    }
+    tr:hover td { background: var(--surface2); }
+
+    .badge {
+      border-radius: 4px;
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      text-transform: uppercase;
+    }
+    .badge-critical { background: rgba(239,68,68,.15); color: var(--critical); }
+    .badge-high { background: rgba(249,115,22,.15); color: var(--high); }
+    .badge-medium { background: rgba(234,179,8,.15); color: var(--medium); }
+    .badge-low { background: rgba(34,197,94,.15); color: var(--low); }
+    .badge-ok { background: rgba(16,185,129,.1); color: var(--ok); }
+    .badge-link { background: rgba(239,68,68,.1); color: var(--link-broken); }
+    .badge-nomatch { background: rgba(139,148,158,.1); color: var(--text-muted); }
+    .badge-error { background: rgba(239,68,68,.1); color: var(--critical); }
+
+    .article-title a {
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .article-title a:hover { color: var(--accent); }
+
+    .expand-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 4px 10px;
+      transition: all 0.15s;
+    }
+    .expand-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .detail-row td {
+      background: var(--surface2);
+      padding: 0;
+    }
+    .detail-inner {
+      padding: 16px 20px;
+      display: none;
+    }
+    .detail-inner.open { display: block; }
+
+    .discrepancy-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+    .disc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .disc-card.critical { border-left: 3px solid var(--critical); }
+    .disc-card.high { border-left: 3px solid var(--high); }
+    .disc-card.medium { border-left: 3px solid var(--medium); }
+    .disc-card.low { border-left: 3px solid var(--low); }
+
+    .disc-field { font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+    .disc-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+    .disc-side { background: var(--bg); border-radius: 6px; padding: 10px 12px; }
+    .disc-side-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .disc-side-text { font-size: 12px; line-height: 1.5; }
+    .disc-side.article-side { border: 1px solid rgba(239,68,68,.25); }
+    .disc-side.github-side { border: 1px solid rgba(99,102,241,.25); }
+    .disc-explanation { color: var(--text-muted); font-size: 12px; margin-top: 8px; font-style: italic; }
+    .disc-file { font-size: 11px; color: var(--accent); margin-top: 4px; }
+
+    .broken-links { margin-top: 12px; }
+    .broken-link-item { background: var(--surface); border: 1px solid rgba(239,68,68,.2); border-radius: 6px; padding: 10px 14px; margin-top: 8px; }
+    .broken-link-url { color: var(--critical); font-size: 12px; word-break: break-all; }
+    .broken-link-status { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+
+    .missing-content-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+    .missing-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--medium);
+      border-radius: 8px;
+      padding: 12px 16px;
+    }
+    .missing-card.high { border-left-color: var(--high); }
+    .missing-card.low  { border-left-color: #4b5563; }
+    .missing-feature { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+    .missing-evidence { background: var(--bg); border-radius: 4px; color: #7dd3fc; font-family: 'SF Mono','Fira Code',monospace; font-size: 11px; margin: 6px 0; padding: 6px 10px; word-break: break-all; }
+    .missing-suggestion { color: var(--text); font-size: 12px; line-height: 1.5; margin-top: 6px; }
+    .missing-file { color: var(--accent); font-size: 11px; margin-top: 4px; }
+
+    .github-files { margin-top: 12px; }
+    .github-file { color: var(--accent); font-size: 11px; display: inline-block; background: rgba(99,102,241,.08); border-radius: 4px; padding: 2px 8px; margin: 3px 3px 0 0; }
+
+    .section-label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 8px; }
+
+    .empty { color: var(--text-muted); font-size: 13px; padding: 40px; text-align: center; }
+
+    .loading { color: var(--text-muted); font-size: 14px; padding: 60px; text-align: center; }
+
+    @media (max-width: 768px) {
+      .disc-compare { grid-template-columns: 1fr; }
+      header, .summary-bar, .toolbar, .table-wrap { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🔍 Drata Help Center Audit</h1>
+    <div class="meta" id="audit-meta">Loading results...</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="expand-btn" onclick="loadData()" id="refresh-btn">↻ Refresh</button>
+    <button class="run-btn" id="run-btn" onclick="startAudit()">▶ Run Audit</button>
+  </div>
+</header>
+
+<!-- Progress panel (hidden until a run starts) -->
+<div class="progress-panel" id="progress-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="font-size:12px;font-weight:600;color:var(--text-muted)" id="progress-label">Preparing…</span>
+    <span style="font-size:12px;color:var(--text-muted)" id="progress-pct">0%</span>
+  </div>
+  <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-bar"></div></div>
+  <div class="log-box" id="log-box"></div>
+</div>
+
+<div class="summary-bar" id="summary-bar">
+  <div class="stat muted"><div class="val" id="stat-total">—</div><div class="lbl">Total Articles</div></div>
+  <div class="stat ok"><div class="val" id="stat-ok">—</div><div class="lbl">No Issues</div></div>
+  <div class="stat critical"><div class="val" id="stat-disc">—</div><div class="lbl">Discrepancies</div></div>
+  <div class="stat critical"><div class="val" id="stat-critical">—</div><div class="lbl">Critical</div></div>
+  <div class="stat warn"><div class="val" id="stat-missing">—</div><div class="lbl">Missing Content</div></div>
+  <div class="stat warn"><div class="val" id="stat-links">—</div><div class="lbl">Broken Links</div></div>
+  <div class="stat muted"><div class="val" id="stat-nomatch">—</div><div class="lbl">No GitHub Match</div></div>
+  <div class="stat muted"><div class="val" id="stat-duration">—</div><div class="lbl">Duration</div></div>
+</div>
+
+<div class="toolbar">
+  <input type="search" id="search" placeholder="Search articles..." oninput="render()" />
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" data-filter="discrepancies" onclick="setFilter('discrepancies', this)">Discrepancies</button>
+    <button class="filter-btn" data-filter="critical" onclick="setFilter('critical', this)">Critical Only</button>
+    <button class="filter-btn" data-filter="missing_content" onclick="setFilter('missing_content', this)">Missing Content</button>
+    <button class="filter-btn" data-filter="broken_links" onclick="setFilter('broken_links', this)">Broken Links</button>
+    <button class="filter-btn" data-filter="ok" onclick="setFilter('ok', this)">Clean</button>
+    <button class="filter-btn" data-filter="no_github_match" onclick="setFilter('no_github_match', this)">No GitHub Match</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div id="table-container" class="loading">Loading audit results from results/latest.json…</div>
+</div>
+
+<script>
+let allData = null;
+let currentFilter = 'all';
+let expandedRows = new Set();
+
+async function loadData() {
+  try {
+    // Try to load from same directory
+    const res = await fetch('results/latest.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    allData = await res.json();
+    populateSummary();
+    render();
+  } catch (e) {
+    document.getElementById('table-container').innerHTML =
+      `<div class="empty">
+        <strong>No results file found.</strong><br><br>
+        Run the audit first:<br>
+        <code style="background:#1a1d27;padding:6px 12px;border-radius:4px;display:inline-block;margin-top:8px;">node audit.js</code><br><br>
+        Then open this dashboard — it reads from <code>results/latest.json</code>.
+      </div>`;
+  }
+}
+
+function populateSummary() {
+  const s = allData.summary;
+  document.getElementById('audit-meta').textContent =
+    `Audit run: ${s.auditDate} · ${s.totalArticles} articles · ${s.durationSeconds}s`;
+  document.getElementById('stat-total').textContent = s.totalArticles;
+  document.getElementById('stat-ok').textContent = s.ok;
+  document.getElementById('stat-disc').textContent = s.withDiscrepancies;
+  document.getElementById('stat-critical').textContent = s.criticalDiscrepancies;
+  document.getElementById('stat-missing').textContent = s.withMissingContent ?? '—';
+  document.getElementById('stat-links').textContent = s.withBrokenLinks;
+  document.getElementById('stat-nomatch').textContent = s.noGithubMatch;
+  document.getElementById('stat-duration').textContent = s.durationSeconds + 's';
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  render();
+}
+
+function statusBadge(article) {
+  const s = article.status;
+  if (s === 'ok') return '<span class="badge badge-ok">OK</span>';
+  if (s === 'discrepancies') {
+    const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+    if (crit > 0) return `<span class="badge badge-critical">⚠ ${crit} critical</span>`;
+    return `<span class="badge badge-high">${article.discrepancies.length} issues</span>`;
+  }
+  if (s === 'missing_content') return `<span class="badge badge-medium">✦ ${article.missingContent.length} missing</span>`;
+  if (s === 'broken_links') return `<span class="badge badge-link">${article.brokenLinks.length} broken links</span>`;
+  if (s === 'multiple') {
+    const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+    const parts = [];
+    if (article.discrepancies.length) parts.push(`<span class="badge badge-${crit > 0 ? 'critical' : 'high'}">${crit > 0 ? '⚠ critical' : article.discrepancies.length + ' issues'}</span>`);
+    if ((article.missingContent||[]).length) parts.push(`<span class="badge badge-medium">✦ ${article.missingContent.length} missing</span>`);
+    if (article.brokenLinks.length) parts.push(`<span class="badge badge-link">${article.brokenLinks.length} links</span>`);
+    return parts.join(' ');
+  }
+  if (s === 'no_github_match') {
+    const reasons = {
+      'title_too_vague': { label: 'title too vague', tip: 'No useful keywords could be extracted from the article title — likely a short or generic title like "Overview" or "Getting started". Manual review needed.' },
+      'no_path_match':   { label: 'no path match',   tip: 'Keywords were found in the title but zero files in the GitHub repo contain those keywords in their path. The relevant code may use different naming conventions.' },
+      'content_unreadable': { label: 'files unreadable', tip: 'Matching files were found by path but their content could not be fetched from GitHub (permissions or API error).' },
+    };
+    const r = reasons[article.noGithubMatchReason] || { label: 'no match', tip: 'No matching GitHub files found.' };
+    return `<span class="badge badge-nomatch" title="${r.tip}">⚬ ${r.label}</span>`;
+  }
+  if (s === 'error') return '<span class="badge badge-error">error</span>';
+  return `<span class="badge badge-nomatch">${s}</span>`;
+}
+
+function discrepancyCount(article) {
+  const n = article.discrepancies.length;
+  const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+  if (n === 0) return '<span style="color:var(--text-muted)">—</span>';
+  let html = `<span style="color:var(--text)">${n}</span>`;
+  if (crit > 0) html += ` <span class="badge badge-critical">${crit} critical</span>`;
+  return html;
+}
+
+function render() {
+  if (!allData) return;
+  const search = document.getElementById('search').value.toLowerCase();
+  let articles = allData.articles;
+
+  // Filter
+  if (currentFilter === 'discrepancies') articles = articles.filter(a => a.discrepancies.length > 0);
+  else if (currentFilter === 'critical') articles = articles.filter(a => a.discrepancies.some(d => d.severity === 'critical'));
+  else if (currentFilter === 'missing_content') articles = articles.filter(a => (a.missingContent || []).length > 0);
+  else if (currentFilter === 'broken_links') articles = articles.filter(a => a.brokenLinks.length > 0);
+  else if (currentFilter === 'ok') articles = articles.filter(a => a.status === 'ok');
+  else if (currentFilter === 'no_github_match') articles = articles.filter(a => a.status === 'no_github_match');
+
+  // Search
+  if (search) articles = articles.filter(a => a.title.toLowerCase().includes(search));
+
+  if (articles.length === 0) {
+    document.getElementById('table-container').innerHTML = '<div class="empty">No articles match the current filter.</div>';
+    return;
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">Article</th>
+          <th style="width:15%">Status</th>
+          <th style="width:9%">Discrepancies</th>
+          <th style="width:9%">Missing</th>
+          <th style="width:9%">Broken Links</th>
+          <th style="width:12%">Last Updated</th>
+          <th style="width:10%">GitHub Files</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  for (const article of articles) {
+    const updated = article.updatedAt
+      ? new Date(article.updatedAt * 1000).toLocaleDateString()
+      : '—';
+    const fileCount = article.githubFilesChecked.length;
+    const rowId = `row-${article.id}`;
+    const isOpen = expandedRows.has(article.id);
+
+    html += `
+      <tr>
+        <td class="article-title">
+          <a href="${article.url}" target="_blank">${escHtml(article.title)}</a>
+        </td>
+        <td>${statusBadge(article)}</td>
+        <td>${discrepancyCount(article)}</td>
+        <td>${(article.missingContent||[]).length > 0 ? `<span style="color:var(--medium)">${article.missingContent.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${article.brokenLinks.length > 0 ? `<span style="color:var(--critical)">${article.brokenLinks.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td style="color:var(--text-muted)">${updated}</td>
+        <td style="color:var(--text-muted)">${fileCount > 0 ? fileCount : '<span style="color:var(--border)">0</span>'}</td>
+        <td>
+          ${(article.discrepancies.length > 0 || (article.missingContent||[]).length > 0 || article.brokenLinks.length > 0 || fileCount > 0)
+            ? `<button class="expand-btn" onclick="toggleRow('${article.id}')" id="btn-${article.id}">${isOpen ? '▲ Collapse' : '▼ Details'}</button>`
+            : ''}
+        </td>
+      </tr>
+      <tr class="detail-row" id="${rowId}">
+        <td colspan="7">
+          <div class="detail-inner ${isOpen ? 'open' : ''}" id="inner-${article.id}">
+            ${buildDetailHtml(article)}
+          </div>
+        </td>
+      </tr>
+    `;
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('table-container').innerHTML = html;
+}
+
+function buildDetailHtml(article) {
+  let html = '';
+
+  if (article.githubFilesChecked.length > 0) {
+    html += `<div class="github-files"><div class="section-label">GitHub files compared</div>`;
+    for (const f of article.githubFilesChecked) {
+      html += `<span class="github-file">${escHtml(f)}</span>`;
+    }
+    html += '</div>';
+  }
+
+  if (article.discrepancies.length > 0) {
+    html += `<div class="discrepancy-list" style="margin-top:16px">
+      <div class="section-label">Discrepancies (${article.discrepancies.length})</div>`;
+    for (const d of article.discrepancies) {
+      html += `
+        <div class="disc-card ${d.severity}">
+          <div class="disc-field">
+            <span class="badge badge-${d.severity}">${d.severity}</span>
+            &nbsp;${escHtml(d.field)}
+          </div>
+          <div class="disc-compare">
+            <div class="disc-side article-side">
+              <div class="disc-side-label">📄 Article says</div>
+              <div class="disc-side-text">${escHtml(d.articleSays)}</div>
+            </div>
+            <div class="disc-side github-side">
+              <div class="disc-side-label">🐙 GitHub says</div>
+              <div class="disc-side-text">${escHtml(d.githubSays)}</div>
+            </div>
+          </div>
+          ${d.explanation ? `<div class="disc-explanation">${escHtml(d.explanation)}</div>` : ''}
+          ${d.githubFile ? `<div class="disc-file">📁 ${escHtml(d.githubFile)}</div>` : ''}
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  if ((article.missingContent || []).length > 0) {
+    html += `<div class="missing-content-list" style="margin-top:16px">
+      <div class="section-label">Missing Content (${article.missingContent.length}) — features in GitHub not covered by this article</div>`;
+    for (const m of article.missingContent) {
+      html += `
+        <div class="missing-card ${m.priority}">
+          <div class="missing-feature">
+            <span class="badge badge-${m.priority === 'high' ? 'high' : m.priority === 'low' ? 'nomatch' : 'medium'}">${m.priority}</span>
+            &nbsp;✦ ${escHtml(m.feature)}
+          </div>
+          <div class="missing-evidence">${escHtml(m.githubEvidence)}</div>
+          <div class="missing-suggestion">📝 <strong>Suggested addition:</strong> ${escHtml(m.suggestedAddition)}</div>
+          ${m.githubFile ? `<div class="missing-file">📁 ${escHtml(m.githubFile)}</div>` : ''}
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  if (article.brokenLinks.length > 0) {
+    html += `<div class="broken-links" style="margin-top:16px">
+      <div class="section-label">Broken Links (${article.brokenLinks.length})</div>`;
+    for (const link of article.brokenLinks) {
+      html += `
+        <div class="broken-link-item">
+          <div class="broken-link-url">${escHtml(link.url)}</div>
+          <div class="broken-link-status">Status: ${link.status || 'timeout/error'}${link.error ? ` — ${escHtml(link.error)}` : ''}</div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  if (article.error) {
+    html += `<div style="margin-top:12px;color:var(--critical);font-size:12px">⚠ Audit error: ${escHtml(article.error)}</div>`;
+  }
+
+  return html || '<div style="color:var(--text-muted);font-size:12px">No issues found.</div>';
+}
+
+function toggleRow(id) {
+  if (expandedRows.has(id)) {
+    expandedRows.delete(id);
+  } else {
+    expandedRows.add(id);
+  }
+  const inner = document.getElementById(`inner-${id}`);
+  const btn = document.getElementById(`btn-${id}`);
+  if (inner) inner.classList.toggle('open', expandedRows.has(id));
+  if (btn) btn.textContent = expandedRows.has(id) ? '▲ Collapse' : '▼ Details';
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+loadData();
+
+// ── Run button logic ──────────────────────────────────────────────────────────
+
+const IS_LOCAL_SERVER = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+let pollTimer = null;
+let lastLogCount = 0;
+
+// Hide run button if not on local server (e.g. opened as a plain file)
+if (!IS_LOCAL_SERVER) {
+  const btn = document.getElementById('run-btn');
+  if (btn) {
+    btn.title = 'Run button only works when served via: node server.js';
+    btn.disabled = true;
+    btn.textContent = '▶ Run Audit (start server.js first)';
+    btn.style.fontSize = '11px';
+  }
+}
+
+async function startAudit() {
+  if (!IS_LOCAL_SERVER) return;
+  try {
+    const res = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+    const data = await res.json();
+    if (res.status === 409) {
+      alert('An audit is already running. Check the progress panel below.');
+      return;
+    }
+    setRunning(true);
+    startPolling();
+  } catch (e) {
+    alert('Could not reach server. Make sure you started it with: node server.js');
+  }
+}
+
+function setRunning(running) {
+  const btn = document.getElementById('run-btn');
+  const panel = document.getElementById('progress-panel');
+  if (!btn || !panel) return;
+  if (running) {
+    btn.disabled = true;
+    btn.classList.add('running');
+    btn.textContent = '⏳ Running…';
+    panel.classList.add('visible');
+  } else {
+    btn.disabled = false;
+    btn.classList.remove('running');
+    btn.textContent = '▶ Run Audit';
+  }
+}
+
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 2000);
+}
+
+async function pollStatus() {
+  if (!IS_LOCAL_SERVER) return;
+  try {
+    const [statusRes, logsRes] = await Promise.all([
+      fetch('/api/status').then(r => r.json()),
+      fetch('/api/logs').then(r => r.json()),
+    ]);
+
+    // Update progress bar
+    const pct = statusRes.progress || 0;
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+    document.getElementById('progress-label').textContent =
+      statusRes.running ? `Auditing articles… (${pct}% complete)` : (pct === 100 ? 'Audit complete ✓' : 'Last run finished');
+
+    // Append new log lines
+    const logBox = document.getElementById('log-box');
+    const logs = logsRes.logs || [];
+    if (logs.length > lastLogCount) {
+      const newLines = logs.slice(lastLogCount);
+      lastLogCount = logs.length;
+      for (const entry of newLines) {
+        const div = document.createElement('div');
+        div.className = 'log-line' +
+          (entry.line.includes('ERROR') || entry.line.includes('[stderr]') ? ' log-error' : '') +
+          (entry.line.includes('AUDIT COMPLETE') || entry.line.includes('exit code 0') ? ' log-done' : '');
+        div.textContent = entry.line;
+        logBox.appendChild(div);
+      }
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // Done
+    if (!statusRes.running) {
+      clearInterval(pollTimer);
+      setRunning(false);
+      // Reload results after a short delay
+      setTimeout(() => loadData(), 1000);
+    }
+  } catch (e) {
+    // Server may have restarted; stop polling silently
+    clearInterval(pollTimer);
+  }
+}
+
+// On load: check if an audit is already running (e.g. page was refreshed mid-run)
+if (IS_LOCAL_SERVER) {
+  fetch('/api/status').then(r => r.json()).then(s => {
+    if (s.running) {
+      setRunning(true);
+      startPolling();
+    }
+  }).catch(() => {});
+}
+</script>
+</body>
+</html>

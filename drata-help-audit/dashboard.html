@@ -1,0 +1,2397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drata Help Center Audit</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #252836;
+      --border: #2e3244;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --accent: #6c63ff;
+      --critical: #ef4444;
+      --high: #f97316;
+      --medium: #eab308;
+      --low: #22c55e;
+      --ok: #10b981;
+      --link-broken: #ef4444;
+      --panel-w: 480px;
+      --panel-w-expanded: 780px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+      font-size: 14px;
+    }
+    /* dim overlay behind panel */
+    #panel-backdrop {
+      background: rgba(0,0,0,.45);
+      bottom: 0; left: 0; right: 0; top: 0;
+      display: none; position: fixed; z-index: 199;
+    }
+    body.panel-open #panel-backdrop { display: block; }
+
+    /* ── Run button ── */
+    .run-btn {
+      background: var(--accent); border: none; border-radius: 7px; color: #fff;
+      cursor: pointer; font-size: 13px; font-weight: 600; padding: 9px 20px;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .run-btn:hover:not(:disabled) { opacity: 0.85; }
+    .run-btn:disabled { background: var(--surface2); color: var(--text-muted); cursor: not-allowed; }
+    .run-btn.running { background: #1e2a1e; color: #4ade80; border: 1px solid #2d4a2d; }
+
+    .progress-panel { background: var(--surface); border-bottom: 1px solid var(--border); display: none; padding: 14px 32px; }
+    .progress-panel.visible { display: block; }
+    .progress-bar-track { background: var(--surface2); border-radius: 4px; height: 6px; margin-bottom: 10px; overflow: hidden; width: 100%; }
+    .progress-bar-fill { background: var(--accent); border-radius: 4px; height: 100%; transition: width 0.4s ease; width: 0%; }
+    .log-box {
+      background: #0a0c12; border: 1px solid var(--border); border-radius: 6px;
+      color: #7dd3fc; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+      height: 140px; line-height: 1.6; overflow-y: auto; padding: 10px 14px;
+    }
+    .log-box .log-line { white-space: pre-wrap; word-break: break-all; }
+    .log-box .log-error { color: #fca5a5; }
+    .log-box .log-done { color: #4ade80; font-weight: 600; }
+
+    header {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 20px 32px; display: flex; align-items: center; justify-content: space-between;
+    }
+    header h1 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
+    header .meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+
+    .summary-bar { display: flex; gap: 16px; padding: 20px 32px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 20px; min-width: 130px; }
+    .stat .val { font-size: 28px; font-weight: 700; line-height: 1; }
+    .stat .lbl { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
+    .stat.critical .val { color: var(--critical); }
+    .stat.warn .val { color: var(--high); }
+    .stat.ok .val { color: var(--ok); }
+    .stat.muted .val { color: var(--text-muted); }
+
+    .toolbar { display: flex; gap: 12px; padding: 16px 32px; align-items: center; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    input[type="search"] {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); padding: 8px 14px; font-size: 13px; width: 280px; outline: none;
+    }
+    input[type="search"]:focus { border-color: var(--accent); }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; }
+    .filter-btn {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text-muted); cursor: pointer; padding: 6px 14px; font-size: 12px;
+      font-weight: 500; transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--text); }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* ── Main table ── */
+    .table-wrap { overflow-x: auto; padding: 0 32px 32px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; table-layout: fixed; }
+    th {
+      background: var(--surface); border-bottom: 2px solid var(--border); color: var(--text-muted);
+      font-size: 11px; font-weight: 600; letter-spacing: 0.05em; padding: 10px 14px;
+      position: sticky; text-align: left; text-transform: uppercase; top: 0;
+      white-space: nowrap; z-index: 20;
+    }
+    td { border-bottom: 1px solid var(--border); overflow: hidden; padding: 12px 14px; text-align: left; text-overflow: ellipsis; vertical-align: top; }
+    tr.data-row:hover td { background: var(--surface2); cursor: pointer; }
+    tr.data-row.active-row td { background: rgba(108,99,255,.08); border-bottom-color: rgba(108,99,255,.3); }
+
+    .badge { border-radius: 4px; display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; text-transform: uppercase; }
+    .badge-critical { background: rgba(239,68,68,.15); color: var(--critical); }
+    .badge-high { background: rgba(249,115,22,.15); color: var(--high); }
+    .badge-medium { background: rgba(234,179,8,.15); color: var(--medium); }
+    .badge-low { background: rgba(34,197,94,.15); color: var(--low); }
+    .badge-ok { background: rgba(16,185,129,.1); color: var(--ok); }
+    .badge-link { background: rgba(239,68,68,.1); color: var(--link-broken); }
+    .badge-nomatch { background: rgba(139,148,158,.1); color: var(--text-muted); }
+    .badge-unreviewed { background: rgba(251,191,36,.12); color: #fbbf24; }
+    .badge-error { background: rgba(239,68,68,.1); color: var(--critical); }
+
+    .article-title { text-align: left; }
+    .article-title a { color: var(--text); text-decoration: none; font-weight: 500; word-break: break-word; }
+    .article-title a:hover { color: var(--accent); }
+
+    .details-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; font-size: 11px; padding: 4px 10px;
+      transition: all 0.15s; white-space: nowrap;
+    }
+    .details-btn:hover, .details-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(108,99,255,.08); }
+
+    /* ══════════════════════════════════════════════════════
+       SIDE PANEL
+    ══════════════════════════════════════════════════════ */
+    #side-panel {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      position: fixed;
+      right: 0;
+      top: 0;
+      transform: translateX(100%);
+      transition: transform 0.25s ease, width 0.2s ease;
+      width: var(--panel-w);
+      z-index: 200;
+    }
+    #side-panel.open { transform: translateX(0); }
+    #side-panel.expanded { width: var(--panel-w-expanded); }
+    .panel-expand-btn {
+      background: none; border: none; border-radius: 4px; color: var(--text-muted);
+      cursor: pointer; font-size: 14px; padding: 4px 7px; transition: color 0.15s;
+      line-height: 1;
+    }
+    .panel-expand-btn:hover { color: var(--text); }
+
+    /* Panel top bar */
+    .panel-topbar {
+      align-items: center;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-shrink: 0;
+      gap: 6px;
+      padding: 10px 16px;
+    }
+    .panel-nav-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 3px 9px;
+      transition: all 0.15s;
+    }
+    .panel-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .panel-nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .panel-nav-count { color: var(--text-muted); font-size: 11px; flex: 1; }
+    .panel-close-btn {
+      background: none; border: none; color: var(--text-muted); cursor: pointer;
+      font-size: 18px; line-height: 1; padding: 2px 6px; transition: color 0.15s;
+    }
+    .panel-close-btn:hover { color: var(--text); }
+    .panel-ext-link {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; font-size: 11px; padding: 3px 9px;
+      text-decoration: none; transition: all 0.15s;
+    }
+    .panel-ext-link:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* Panel article header */
+    .panel-article-header {
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      padding: 16px 20px 14px;
+    }
+    .panel-title {
+      color: var(--text); font-size: 15px; font-weight: 600; line-height: 1.4;
+      margin-bottom: 10px;
+    }
+    .panel-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .panel-chip {
+      align-items: center; border-radius: 20px; display: inline-flex;
+      font-size: 11px; font-weight: 600; gap: 4px; padding: 3px 10px;
+    }
+    .chip-disc { background: rgba(249,115,22,.12); color: var(--high); }
+    .chip-critical { background: rgba(239,68,68,.15); color: var(--critical); }
+    .chip-missing { background: rgba(234,179,8,.12); color: var(--medium); }
+    .chip-links { background: rgba(239,68,68,.1); color: var(--link-broken); }
+    .chip-ok { background: rgba(16,185,129,.1); color: var(--ok); }
+    .chip-files { background: rgba(108,99,255,.1); color: var(--accent); }
+    .chip-stale { background: rgba(148,163,184,.1); color: #94a3b8; }
+    .chip-unreviewed { background: rgba(251,191,36,.12); color: #fbbf24; }
+    .chip-3p { background: rgba(56,189,248,.1); color: #38bdf8; }
+    .chip-grammar { background: rgba(167,139,250,.1); color: #a78bfa; }
+    .chip-conflict { background: rgba(251,191,36,.12); color: #fbbf24; }
+
+    /* ── Run controls row ── */
+    .run-controls {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 12px 32px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .run-controls-label {
+      color: var(--text-muted); font-size: 11px; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+    }
+    .run-limit-wrap { display: flex; align-items: center; gap: 6px; }
+    .run-limit-wrap label { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+    .run-groups { display: flex; gap: 10px; flex-wrap: wrap; }
+    .run-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .run-last {
+      color: var(--text-muted); font-size: 10px; white-space: nowrap; text-align: center;
+      min-height: 14px;
+    }
+
+    .badge-stale { background: rgba(148,163,184,.12); color: #94a3b8; }
+    .stale-age { color: #94a3b8; font-size: 11px; white-space: nowrap; }
+
+    /* Panel scrollable body */
+    .panel-body { flex: 1; overflow-y: auto; padding: 16px 20px 32px; }
+
+    /* Section headers inside panel */
+    .panel-section { margin-top: 20px; }
+    .panel-section:first-child { margin-top: 0; }
+    .panel-section-title {
+      align-items: center; display: flex; gap: 8px; margin-bottom: 10px;
+    }
+    .panel-section-title span {
+      color: var(--text-muted); font-size: 10px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .panel-section-title hr {
+      border: none; border-top: 1px solid var(--border); flex: 1;
+    }
+
+    /* Discrepancy cards in panel */
+    .disc-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 10px; overflow: hidden;
+    }
+    .disc-card:last-child { margin-bottom: 0; }
+    .disc-header {
+      align-items: center; background: var(--surface2);
+      border-bottom: 1px solid var(--border); display: flex; gap: 8px; padding: 9px 14px;
+    }
+    .disc-num {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); font-size: 10px; font-weight: 700;
+      min-width: 22px; padding: 2px 6px; text-align: center;
+    }
+    .disc-header-title { color: var(--text); font-size: 12px; font-weight: 600; flex: 1; }
+    .disc-action-tag {
+      background: rgba(108,99,255,.12); border-radius: 4px; color: var(--accent);
+      font-size: 10px; font-weight: 600; letter-spacing: 0.04em; padding: 2px 8px; text-transform: uppercase;
+    }
+    .disc-file {
+      color: var(--text-muted); font-size: 10px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; max-width: 140px;
+    }
+    .disc-body { padding: 0; }
+    .disc-field { border-bottom: 1px solid var(--border); padding: 9px 14px; }
+    .disc-field:last-child { border-bottom: none; }
+    .disc-field-label {
+      color: var(--text-muted); font-size: 10px; font-weight: 700;
+      letter-spacing: 0.05em; margin-bottom: 3px; text-transform: uppercase;
+    }
+    .disc-field-value { color: var(--text); font-size: 12px; line-height: 1.55; }
+    .disc-field.row-fix .disc-field-label { color: #4ade80; }
+    .disc-field.row-fix .disc-field-value { color: #d1fae5; }
+    .disc-field.row-why .disc-field-label { color: #fbbf24; }
+    .disc-field.row-why .disc-field-value { color: #fde68a; font-size: 11px; }
+
+    /* Missing content cards */
+    .missing-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; margin-bottom: 10px; overflow: hidden;
+    }
+    .missing-card:last-child { margin-bottom: 0; }
+    .missing-header {
+      align-items: center; background: var(--surface2);
+      border-bottom: 1px solid var(--border); display: flex; gap: 8px; padding: 9px 14px;
+    }
+    .missing-body { padding: 0; }
+    .missing-field { border-bottom: 1px solid var(--border); padding: 9px 14px; }
+    .missing-field:last-child { border-bottom: none; }
+    .missing-field-label {
+      color: var(--text-muted); font-size: 10px; font-weight: 700;
+      letter-spacing: 0.05em; margin-bottom: 3px; text-transform: uppercase;
+    }
+    .missing-field-value { color: var(--text); font-size: 12px; line-height: 1.55; }
+    .missing-field.row-suggestion .missing-field-label { color: #4ade80; }
+    .missing-field.row-suggestion .missing-field-value { color: #d1fae5; }
+
+    /* Broken link items */
+    .broken-link-item {
+      background: var(--bg); border: 1px solid rgba(239,68,68,.2);
+      border-radius: 6px; margin-bottom: 8px; padding: 10px 14px;
+    }
+    .broken-link-url { color: var(--critical); font-size: 11px; word-break: break-all; }
+    .broken-link-status { color: var(--text-muted); font-size: 11px; margin-top: 3px; }
+
+    /* GitHub files pills */
+    .github-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .github-file {
+      background: rgba(99,102,241,.08); border-radius: 4px; color: var(--accent);
+      font-size: 10px; padding: 2px 8px;
+    }
+
+    /* Utility buttons */
+    .copy-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; font-size: 10px;
+      margin-left: 6px; padding: 1px 7px; transition: all 0.15s; vertical-align: middle;
+    }
+    .copy-btn:hover { border-color: #4ade80; color: #4ade80; }
+
+    .ignore-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; flex-shrink: 0;
+      font-size: 10px; padding: 2px 8px; transition: all 0.15s;
+    }
+    .ignore-btn:hover { border-color: var(--critical); color: var(--critical); }
+
+    .ignored-notice {
+      background: var(--surface2); border-radius: 6px; color: var(--text-muted);
+      font-size: 11px; font-style: italic; margin-bottom: 10px; padding: 8px 12px; text-align: center;
+    }
+
+    .empty { color: var(--text-muted); font-size: 13px; padding: 40px; text-align: center; }
+    .loading { color: var(--text-muted); font-size: 14px; padding: 60px; text-align: center; }
+
+    /* ── Replace Term modal ── */
+    .rt-overlay {
+      background: rgba(0,0,0,.7); bottom:0; display:none; left:0; position:fixed; right:0; top:0; z-index:400;
+      align-items:flex-start; justify-content:center; padding-top:40px;
+    }
+    .rt-overlay.open { display:flex; }
+    .rt-modal {
+      background:var(--surface); border:1px solid var(--border); border-radius:12px;
+      display:flex; flex-direction:column; max-height:88vh; width:860px; max-width:96vw;
+      box-shadow:0 16px 48px rgba(0,0,0,.5);
+    }
+    .rt-header {
+      align-items:center; border-bottom:1px solid var(--border); display:flex;
+      gap:12px; justify-content:space-between; padding:16px 22px;
+    }
+    .rt-header h2 { font-size:15px; font-weight:600; }
+    .rt-close { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:18px; padding:4px 8px; }
+    .rt-close:hover { color:var(--text); }
+    .rt-inputs {
+      border-bottom:1px solid var(--border); display:flex; gap:12px;
+      padding:16px 22px; align-items:flex-end; flex-wrap:wrap;
+    }
+    .rt-field { display:flex; flex-direction:column; gap:5px; flex:1; min-width:180px; }
+    .rt-field label { color:var(--text-muted); font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+    .rt-field input {
+      background:var(--bg); border:1px solid var(--border); border-radius:6px;
+      color:var(--text); font-size:13px; outline:none; padding:8px 12px;
+    }
+    .rt-field input:focus { border-color:var(--accent); }
+    .rt-search-btn {
+      background:var(--accent); border:none; border-radius:6px; color:#fff;
+      cursor:pointer; font-size:13px; font-weight:600; padding:9px 20px;
+      transition:opacity 0.15s; white-space:nowrap;
+    }
+    .rt-search-btn:hover { opacity:.85; }
+    .rt-results-header {
+      align-items:center; display:flex; gap:10px; justify-content:space-between;
+      padding:12px 22px 8px; flex-wrap:wrap;
+    }
+    .rt-results-info { color:var(--text-muted); font-size:12px; }
+    .rt-results-info strong { color:var(--text); }
+    .rt-actions { display:flex; gap:8px; }
+    .rt-approve-all-btn {
+      background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.3); border-radius:6px;
+      color:var(--ok); cursor:pointer; font-size:12px; font-weight:600; padding:6px 14px;
+    }
+    .rt-approve-all-btn:hover { background:rgba(16,185,129,.2); }
+    .rt-apply-btn {
+      background:var(--accent); border:none; border-radius:6px; color:#fff;
+      cursor:pointer; font-size:12px; font-weight:600; padding:6px 14px;
+      transition:opacity .15s;
+    }
+    .rt-apply-btn:disabled { background:var(--surface2); color:var(--text-muted); cursor:not-allowed; }
+    .rt-apply-btn:not(:disabled):hover { opacity:.85; }
+    .rt-results-list { flex:1; overflow-y:auto; padding:0 22px 20px; }
+    .rt-article-card {
+      border:1px solid var(--border); border-radius:8px; margin-top:12px; overflow:hidden;
+    }
+    .rt-article-card.approved { border-color:rgba(16,185,129,.4); }
+    .rt-article-card.rejected { opacity:.45; }
+    .rt-card-header {
+      align-items:center; background:var(--surface2); display:flex;
+      gap:10px; justify-content:space-between; padding:10px 14px;
+    }
+    .rt-card-title { font-size:13px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .rt-card-count { color:var(--text-muted); font-size:11px; white-space:nowrap; }
+    .rt-card-btns { display:flex; gap:6px; }
+    .rt-btn-approve {
+      background:none; border:1px solid rgba(16,185,129,.4); border-radius:4px;
+      color:var(--ok); cursor:pointer; font-size:11px; font-weight:600; padding:3px 10px;
+    }
+    .rt-btn-approve.active { background:rgba(16,185,129,.15); }
+    .rt-btn-reject {
+      background:none; border:1px solid var(--border); border-radius:4px;
+      color:var(--text-muted); cursor:pointer; font-size:11px; padding:3px 10px;
+    }
+    .rt-btn-reject.active { background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.4); color:var(--critical); }
+    .rt-card-body { padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+    .rt-snippets { display:flex; flex-direction:column; gap:6px; }
+    .rt-snippet {
+      background:var(--bg); border-radius:5px; font-size:12px;
+      line-height:1.6; padding:8px 10px; color:var(--text-muted);
+    }
+    .rt-snippet .rt-find { background:rgba(239,68,68,.15); border-radius:2px; color:var(--critical); padding:0 2px; }
+    .rt-snippet .rt-replace { background:rgba(16,185,129,.15); border-radius:2px; color:var(--ok); padding:0 2px; }
+    .rt-custom-replace { display:flex; align-items:center; gap:8px; }
+    .rt-custom-replace label { color:var(--text-muted); font-size:11px; white-space:nowrap; }
+    .rt-custom-replace input {
+      background:var(--bg); border:1px solid var(--border); border-radius:5px;
+      color:var(--text); flex:1; font-size:12px; outline:none; padding:5px 9px;
+    }
+    .rt-custom-replace input:focus { border-color:var(--accent); }
+    .rt-empty { color:var(--text-muted); font-size:13px; padding:30px; text-align:center; }
+    .rt-applying { color:var(--text-muted); font-size:12px; }
+    .rt-preview-btn {
+      background:none; border:1px solid var(--border); border-radius:4px;
+      color:var(--text-muted); cursor:pointer; font-size:11px; padding:3px 10px;
+      white-space:nowrap;
+    }
+    .rt-preview-btn:hover { color:var(--text); border-color:var(--accent); }
+    .rt-preview-area { display:none; flex-direction:column; gap:6px; margin-top:4px; }
+    .rt-preview-area.open { display:flex; }
+    .rt-preview-area label { color:var(--text-muted); font-size:11px; }
+    .rt-preview-area label span { color:var(--ok); font-weight:600; }
+    .rt-preview-textarea {
+      background:var(--bg); border:1px solid var(--border); border-radius:6px;
+      color:var(--text); font-family:monospace; font-size:11.5px; line-height:1.6;
+      min-height:140px; outline:none; padding:10px 12px; resize:vertical; width:100%;
+    }
+    .rt-preview-textarea:focus { border-color:var(--accent); }
+    .rt-preview-modified { color:var(--accent); font-size:10px; font-weight:600; }
+    .rt-toast {
+      align-items:center; border-radius:8px; bottom:24px; display:flex;
+      font-size:13px; font-weight:600; gap:10px; left:50%; padding:12px 20px;
+      position:fixed; transform:translateX(-50%); z-index:9999;
+      box-shadow:0 4px 20px rgba(0,0,0,.4); transition:opacity .4s;
+    }
+    .rt-toast.success { background:#10b981; color:#fff; }
+    .rt-toast.error   { background:#ef4444; color:#fff; }
+    .rt-toast.fade-out { opacity:0; pointer-events:none; }
+
+    /* ── Trend section ── */
+    .trend-section {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+    }
+    .trend-toggle {
+      align-items: center; cursor: pointer; display: flex; gap: 8px;
+      padding: 10px 0; user-select: none;
+    }
+    .trend-toggle span {
+      color: var(--text-muted); font-size: 11px; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase;
+    }
+    .trend-toggle .trend-caret { color: var(--text-muted); font-size: 10px; transition: transform 0.15s; }
+    .trend-toggle.open .trend-caret { transform: rotate(90deg); }
+    .trend-body { display: none; padding-bottom: 14px; }
+    .trend-body.open { display: block; }
+    .trend-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    .trend-table th {
+      background: none; border-bottom: 1px solid var(--border); color: var(--text-muted);
+      font-size: 10px; font-weight: 600; letter-spacing: .05em; padding: 6px 10px;
+      text-align: left; text-transform: uppercase;
+    }
+    .trend-table td { border-bottom: 1px solid rgba(46,50,68,.5); color: var(--text); padding: 6px 10px; }
+    .trend-table tr:last-child td { border-bottom: none; }
+    .trend-ok { color: var(--ok); }
+    .trend-bad { color: var(--critical); }
+
+    /* ── Feedback floating button + modal ── */
+    .feedback-fab {
+      background: var(--accent); border: none; border-radius: 50%; bottom: 28px; right: 28px;
+      color: #fff; cursor: pointer; font-size: 18px; height: 48px; width: 48px;
+      position: fixed; box-shadow: 0 4px 16px rgba(0,0,0,.4); z-index: 200;
+      transition: opacity 0.15s, transform 0.15s; line-height: 1;
+    }
+    .feedback-fab:hover { opacity: 0.88; transform: scale(1.06); }
+    .feedback-fab .fab-badge {
+      background: var(--critical); border-radius: 50%; color: #fff;
+      font-size: 9px; font-weight: 700; height: 16px; width: 16px;
+      position: absolute; top: -2px; right: -2px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .feedback-overlay {
+      background: rgba(0,0,0,.55); bottom: 0; display: none; left: 0; position: fixed; right: 0; top: 0; z-index: 300;
+    }
+    .feedback-overlay.open { display: flex; align-items: flex-end; justify-content: flex-end; }
+    .feedback-modal {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px 12px 0 0;
+      bottom: 0; right: 28px; position: fixed; width: 380px; z-index: 310;
+      box-shadow: 0 -8px 32px rgba(0,0,0,.4); display: none; flex-direction: column;
+      max-height: 520px;
+    }
+    .feedback-modal.open { display: flex; }
+    .feedback-modal-header {
+      align-items: center; border-bottom: 1px solid var(--border); display: flex;
+      justify-content: space-between; padding: 14px 18px;
+    }
+    .feedback-modal-header h3 { font-size: 14px; font-weight: 600; }
+    .feedback-tabs { display: flex; gap: 0; }
+    .feedback-tab {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--text-muted); cursor: pointer; font-size: 12px; font-weight: 600;
+      padding: 6px 14px; transition: all 0.15s;
+    }
+    .feedback-tab.active { border-bottom-color: var(--accent); color: var(--text); }
+    .feedback-close { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px 8px; }
+    .feedback-close:hover { color: var(--text); }
+    .feedback-write { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px 18px; }
+    .feedback-write textarea {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: inherit; font-size: 13px; line-height: 1.5;
+      outline: none; padding: 10px 12px; resize: vertical; min-height: 100px;
+    }
+    .feedback-write textarea:focus { border-color: var(--accent); }
+    .feedback-write .feedback-hint { color: var(--text-muted); font-size: 11px; }
+    .feedback-submit {
+      background: var(--accent); border: none; border-radius: 6px; color: #fff;
+      cursor: pointer; font-size: 13px; font-weight: 600; padding: 9px;
+      transition: opacity 0.15s;
+    }
+    .feedback-submit:hover { opacity: 0.85; }
+    .feedback-list { flex: 1; overflow-y: auto; padding: 10px 18px 16px; }
+    .feedback-entry {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      margin-bottom: 10px; padding: 12px 14px;
+    }
+    .feedback-entry:last-child { margin-bottom: 0; }
+    .feedback-entry-text { color: var(--text); font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+    .feedback-entry-meta {
+      align-items: center; display: flex; gap: 8px; justify-content: space-between; margin-top: 8px;
+    }
+    .feedback-entry-date { color: var(--text-muted); font-size: 11px; }
+    .feedback-entry-actions { display: flex; gap: 6px; }
+    .feedback-resolve-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; font-size: 10px; padding: 2px 8px;
+      transition: all 0.15s;
+    }
+    .feedback-resolve-btn:hover { border-color: var(--ok); color: var(--ok); }
+    .feedback-resolve-btn.resolved { border-color: var(--ok); color: var(--ok); }
+    .feedback-delete-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-muted); cursor: pointer; font-size: 10px; padding: 2px 8px;
+      transition: all 0.15s;
+    }
+    .feedback-delete-btn:hover { border-color: var(--critical); color: var(--critical); }
+    .feedback-empty { color: var(--text-muted); font-size: 12px; padding: 20px; text-align: center; }
+
+    /* ── Page tabs ── */
+    .page-tabs {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; gap: 0; padding: 0 32px;
+    }
+    .page-tab {
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--text-muted); cursor: pointer; font-size: 13px; font-weight: 500;
+      padding: 10px 18px 9px; transition: color .15s;
+    }
+    .page-tab:hover { color: var(--text); }
+    .page-tab.active { border-bottom-color: var(--accent); color: var(--text); }
+
+    /* ── History dashboard ── */
+    #tab-dashboard { padding: 24px 32px 48px; }
+    .hist-section-label {
+      color: var(--text-muted); font-size: 11px; font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .hist-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 24px; }
+    .hist-card { background: var(--surface2); border-radius: 8px; padding: 14px 16px; }
+    .hist-card-label { color: var(--text-muted); font-size: 11px; margin-bottom: 6px; }
+    .hist-card-value { color: var(--text); font-size: 26px; font-weight: 600; line-height: 1; }
+    .hist-card-delta { font-size: 11px; margin-top: 5px; }
+    .hist-delta-up   { color: #10b981; }
+    .hist-delta-down { color: #ef4444; }
+    .hist-delta-flat { color: var(--text-muted); }
+    .hist-score-bar { background: var(--border); border-radius: 3px; height: 5px; margin-top: 7px; overflow: hidden; }
+    .hist-score-fill { background: #10b981; border-radius: 3px; height: 100%; }
+    .hist-charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .hist-chart-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+    }
+    .hist-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .hist-chart-sub { color: var(--text-muted); font-size: 11px; margin-bottom: 12px; }
+    .hist-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; }
+    .hist-legend-item { align-items: center; color: var(--text-muted); display: flex; font-size: 11px; gap: 5px; }
+    .hist-legend-dot { border-radius: 2px; flex-shrink: 0; height: 8px; width: 8px; }
+    .hist-table-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+    .hist-table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    .hist-table th {
+      background: var(--surface2); border-bottom: 1px solid var(--border);
+      color: var(--text-muted); font-size: 11px; font-weight: 700;
+      letter-spacing: .05em; padding: 9px 14px; text-align: left; text-transform: uppercase;
+    }
+    .hist-table td { border-bottom: 1px solid var(--border); color: var(--text); padding: 9px 14px; }
+    .hist-table tr:last-child td { border-bottom: none; }
+    .hist-table tr:hover td { background: var(--surface2); }
+    .hist-badge {
+      border-radius: 20px; display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px;
+    }
+    .hist-badge-ok   { background: rgba(16,185,129,.15); color: #10b981; }
+    .hist-badge-warn { background: rgba(234,179,8,.12);  color: #eab308; }
+    .hist-badge-bad  { background: rgba(239,68,68,.12);  color: #ef4444; }
+    .hist-empty { color: var(--text-muted); font-size: 13px; padding: 48px 0; text-align: center; }
+
+    @media (max-width: 768px) {
+      header, .summary-bar, .toolbar, .table-wrap { padding-left: 16px; padding-right: 16px; }
+      :root { --panel-w: 100vw; }
+      .hist-charts-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🔍 Drata Help Center Audit</h1>
+    <div style="color:var(--text-muted);font-size:11px;margin-top:2px;letter-spacing:.02em">Information Security Lead</div>
+    <div class="meta" id="audit-meta">Loading results...</div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="details-btn" onclick="openReplaceTerm()" title="Find and replace a term across all articles">↔ Replace Term</button>
+    <button class="details-btn" onclick="exportCSV()" title="Download results as CSV">⬇ Export CSV</button>
+    <button class="details-btn" onclick="loadData()" id="refresh-btn">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- ══ REPLACE TERM MODAL ══════════════════════════════════════════════════ -->
+<div class="rt-overlay" id="rt-overlay" onclick="rtOverlayClick(event)">
+  <div class="rt-modal" id="rt-modal">
+    <div class="rt-header">
+      <h2>↔ Replace Term across Help Center</h2>
+      <button class="rt-close" onclick="closeReplaceTerm()">✕</button>
+    </div>
+    <div class="rt-inputs">
+      <div class="rt-field">
+        <label>Find term</label>
+        <input id="rt-find" type="text" placeholder="e.g. tech gov" onkeydown="if(event.key==='Enter')rtSearch()" />
+      </div>
+      <div class="rt-field">
+        <label>Replace with <span style="font-weight:400;text-transform:none;letter-spacing:0">(leave blank to remove)</span></label>
+        <input id="rt-replace" type="text" placeholder="e.g. Information Security Lead" onkeydown="if(event.key==='Enter')rtSearch()" />
+      </div>
+      <button class="rt-search-btn" onclick="rtSearch()">Search Articles</button>
+    </div>
+    <div class="rt-results-header" id="rt-results-header" style="display:none">
+      <span class="rt-results-info" id="rt-results-info"></span>
+      <div class="rt-actions">
+        <button class="rt-approve-all-btn" onclick="rtApproveAll()">✓ Approve All</button>
+        <button class="rt-apply-btn" id="rt-apply-btn" onclick="rtApply()" disabled>Apply to Intercom</button>
+      </div>
+    </div>
+    <div class="rt-results-list" id="rt-results-list">
+      <div class="rt-empty">Enter a term above and click Search Articles.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Page tabs -->
+<div class="page-tabs">
+  <button class="page-tab active" id="ptab-articles" onclick="switchPageTab('articles')">Articles</button>
+  <button class="page-tab" id="ptab-dashboard" onclick="switchPageTab('dashboard')">Dashboard</button>
+</div>
+
+<!-- ══ TAB: ARTICLES ═══════════════════════════════════════════════════════ -->
+<div id="tab-articles">
+
+<!-- Run controls row -->
+<div class="run-controls">
+  <span class="run-controls-label">Run</span>
+  <div class="run-limit-wrap">
+    <label>Limit:</label>
+    <input id="audit-limit" type="number" min="1" placeholder="all" title="Leave blank to run on all articles"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);
+             font-size:12px;padding:4px 8px;width:58px;outline:none;text-align:center" />
+  </div>
+  <div class="run-limit-wrap">
+    <label>Collection:</label>
+    <input id="audit-collection" type="text" placeholder="all collections" title="Filter to a specific collection (partial name match)"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);
+             font-size:12px;padding:4px 8px;width:160px;outline:none" />
+  </div>
+  <div class="run-groups">
+    <div class="run-group">
+      <button class="run-btn" id="run-full" onclick="startCheck('full')"
+        style="font-size:12px;padding:7px 14px">🚀 Full Audit</button>
+      <div class="run-last" id="last-full">—</div>
+    </div>
+    <div class="run-group">
+      <button class="run-btn" id="run-links" onclick="startCheck('links')"
+        style="font-size:12px;padding:7px 14px">🔗 Links</button>
+      <div class="run-last" id="last-links">—</div>
+    </div>
+    <div class="run-group">
+      <button class="run-btn" id="run-third-party" onclick="startCheck('third-party')"
+        style="font-size:12px;padding:7px 14px">🌐 3rd-Party</button>
+      <div class="run-last" id="last-third-party">—</div>
+    </div>
+    <div class="run-group">
+      <button class="run-btn" id="run-grammar" onclick="startCheck('grammar')"
+        style="font-size:12px;padding:7px 14px">✏ Grammar</button>
+      <div class="run-last" id="last-grammar">—</div>
+    </div>
+    <div class="run-group">
+      <button class="run-btn" id="run-clean" onclick="startCheck('clean')"
+        style="font-size:12px;padding:7px 14px">✓ Clean Only</button>
+      <div class="run-last" id="last-clean">—</div>
+    </div>
+    <div class="run-group">
+      <button class="run-btn" id="run-contradictions" onclick="startCheck('contradictions')"
+        style="font-size:12px;padding:7px 14px">⚡ Contradictions</button>
+      <div class="run-last" id="last-contradictions">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress panel -->
+<div class="progress-panel" id="progress-panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span style="font-size:12px;font-weight:600;color:var(--text-muted)" id="progress-label">Preparing…</span>
+    <span style="font-size:12px;color:var(--text-muted)" id="progress-pct">0%</span>
+  </div>
+  <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-bar"></div></div>
+  <div class="log-box" id="log-box"></div>
+</div>
+
+<div class="summary-bar" id="summary-bar">
+  <div class="stat muted"><div class="val" id="stat-total">—</div><div class="lbl">Total Articles</div></div>
+  <div class="stat ok"><div class="val" id="stat-ok">—</div><div class="lbl">No Issues</div></div>
+  <div class="stat critical"><div class="val" id="stat-disc">—</div><div class="lbl">Discrepancies</div></div>
+  <div class="stat critical"><div class="val" id="stat-critical">—</div><div class="lbl">Critical</div></div>
+  <div class="stat warn"><div class="val" id="stat-missing">—</div><div class="lbl">Missing Content</div></div>
+  <div class="stat warn"><div class="val" id="stat-links">—</div><div class="lbl">Broken Links</div></div>
+  <div class="stat muted"><div class="val" id="stat-stale">—</div><div class="lbl">Stale (&gt;2 yrs)</div></div>
+  <div class="stat warn"><div class="val" id="stat-3p">—</div><div class="lbl">3rd-Party Terms</div></div>
+  <div class="stat warn"><div class="val" id="stat-grammar">—</div><div class="lbl">Grammar Issues</div></div>
+  <div class="stat warn"><div class="val" id="stat-contradictions">—</div><div class="lbl">Contradictions</div></div>
+  <div class="stat warn"><div class="val" id="stat-nomatch">—</div><div class="lbl">Unreviewed</div></div>
+  <div class="stat muted"><div class="val" id="stat-duration">—</div><div class="lbl">Duration</div></div>
+</div>
+
+<!-- Trend over time (collapsible) -->
+<div class="trend-section" id="trend-section" style="display:none">
+  <div class="trend-toggle" id="trend-toggle" onclick="toggleTrend()">
+    <span class="trend-caret">▶</span>
+    <span>Trend — run history</span>
+    <span id="trend-run-count" style="color:var(--text-muted);font-size:10px;font-weight:400;letter-spacing:0"></span>
+  </div>
+  <div class="trend-body" id="trend-body">
+    <div id="trend-content" style="color:var(--text-muted);font-size:12px">Loading…</div>
+  </div>
+</div>
+
+<div class="toolbar">
+  <input type="search" id="search" placeholder="Search articles..." oninput="render()" />
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+    <button class="filter-btn" data-filter="ok" onclick="setFilter('ok', this)">No Issues</button>
+    <button class="filter-btn" data-filter="discrepancies" onclick="setFilter('discrepancies', this)">Discrepancies</button>
+    <button class="filter-btn" data-filter="critical" onclick="setFilter('critical', this)">Critical Only</button>
+    <button class="filter-btn" data-filter="missing_content" onclick="setFilter('missing_content', this)">Missing Content</button>
+    <button class="filter-btn" data-filter="broken_links" onclick="setFilter('broken_links', this)">Broken Links</button>
+    <button class="filter-btn" data-filter="stale" onclick="setFilter('stale', this)">🕐 Stale (&gt;2 yrs)</button>
+    <button class="filter-btn" data-filter="third_party" onclick="setFilter('third_party', this)">🌐 3rd-Party Terms</button>
+    <button class="filter-btn" data-filter="grammar" onclick="setFilter('grammar', this)">✏ Grammar</button>
+    <button class="filter-btn" data-filter="contradictions" onclick="setFilter('contradictions', this)">⚡ Contradictions</button>
+    <button class="filter-btn" data-filter="no_github_match" onclick="setFilter('no_github_match', this)">⚠ Unreviewed</button>
+    <button class="filter-btn" data-filter="ignored" onclick="setFilter('ignored', this)" id="filter-ignored" style="display:none">🚫 Ignored</button>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <div id="table-container" class="loading">Loading audit results from results/latest.json…</div>
+</div>
+
+</div><!-- #tab-articles -->
+
+<!-- ══ TAB: DASHBOARD ══════════════════════════════════════════════════════ -->
+<div id="tab-dashboard" style="display:none">
+  <div id="hist-loading" style="color:var(--text-muted);font-size:13px;padding:48px 32px">Loading history…</div>
+  <div id="hist-empty" style="display:none" class="hist-empty">
+    No audit history yet.<br>
+    <span style="font-size:12px;margin-top:6px;display:block">Run a full audit to start tracking trends.</span>
+  </div>
+  <div id="hist-content" style="display:none;padding:24px 32px 48px">
+    <div class="hist-section-label" style="margin-bottom:10px">Content health snapshot</div>
+    <div class="hist-cards" id="hist-cards"></div>
+
+    <div class="hist-charts-row">
+      <div class="hist-chart-box">
+        <div class="hist-chart-title">Health score over time</div>
+        <div class="hist-chart-sub">% of articles with no issues (full audit runs only)</div>
+        <div style="position:relative;height:160px"><canvas id="hist-health-chart"></canvas></div>
+      </div>
+      <div class="hist-chart-box">
+        <div class="hist-chart-title">Issue breakdown — latest run</div>
+        <div class="hist-chart-sub">By type</div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="position:relative;height:140px;width:140px;flex-shrink:0"><canvas id="hist-donut-chart"></canvas></div>
+          <div id="hist-donut-legend" class="hist-legend" style="flex-direction:column;gap:8px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hist-chart-box" style="margin-bottom:16px">
+      <div class="hist-chart-title">Issues by type — trend</div>
+      <div class="hist-chart-sub">Across all full audit runs</div>
+      <div class="hist-legend" id="hist-trend-legend"></div>
+      <div style="position:relative;height:180px"><canvas id="hist-trend-chart"></canvas></div>
+    </div>
+
+    <div class="hist-section-label" style="margin-bottom:10px">Run history</div>
+    <div class="hist-table-box">
+      <table class="hist-table">
+        <thead><tr>
+          <th>Date</th><th>Articles</th><th>Health</th>
+          <th>Grammar</th><th>Disc.</th><th>Links</th><th>3P</th><th>Contradictions</th><th>Duration</th>
+        </tr></thead>
+        <tbody id="hist-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SIDE PANEL ══════════════════════════════════════════════════════════ -->
+<div id="panel-backdrop" onclick="closePanel()"></div>
+<div id="side-panel">
+  <!-- top bar: navigation + actions -->
+  <div class="panel-topbar">
+    <button class="panel-nav-btn" id="panel-prev" onclick="panelNav(-1)" title="Previous article (←)">‹</button>
+    <button class="panel-nav-btn" id="panel-next" onclick="panelNav(1)"  title="Next article (→)">›</button>
+    <span class="panel-nav-count" id="panel-nav-count"></span>
+    <a class="panel-ext-link" id="panel-ext-link" href="#" target="_blank" title="Open article in new tab">↗ Open</a>
+    <button class="ignore-btn" id="panel-ignore-btn" onclick="toggleIgnore()" title="Ignore this article in all audits">🚫 Ignore</button>
+    <button class="panel-expand-btn" id="panel-expand-btn" onclick="togglePanelExpand()" title="Expand panel">⤢</button>
+    <button class="panel-close-btn" onclick="closePanel()" title="Close (Esc)">✕</button>
+  </div>
+  <!-- article header (title + chips) -->
+  <div class="panel-article-header">
+    <div class="panel-title" id="panel-title">—</div>
+    <div class="panel-chips" id="panel-chips"></div>
+  </div>
+  <!-- scrollable content -->
+  <div class="panel-body" id="panel-body"></div>
+</div>
+
+<!-- ══ FEEDBACK BUTTON + MODAL ════════════════════════════════════════════ -->
+<button class="feedback-fab" id="feedback-fab" onclick="openFeedback()" title="Capture feedback">
+  💬
+  <span class="fab-badge" id="fab-badge" style="display:none">0</span>
+</button>
+
+<div class="feedback-overlay" id="feedback-overlay" onclick="closeFeedback()"></div>
+<div class="feedback-modal" id="feedback-modal">
+  <div class="feedback-modal-header">
+    <div class="feedback-tabs">
+      <button class="feedback-tab active" id="fb-tab-write" onclick="switchFbTab('write')">Write</button>
+      <button class="feedback-tab" id="fb-tab-review" onclick="switchFbTab('review')">Review <span id="fb-unresolved-badge" style="display:none;background:var(--accent);color:#fff;border-radius:9px;padding:1px 6px;font-size:10px;margin-left:4px"></span></button>
+    </div>
+    <button class="feedback-close" onclick="closeFeedback()">✕</button>
+  </div>
+  <!-- Write tab -->
+  <div class="feedback-write" id="fb-write-panel">
+    <p class="feedback-hint">Spot something off? Jot it here — you'll review it on Fridays.</p>
+    <textarea id="fb-textarea" placeholder="e.g. The AWS article seems outdated — section about IAM roles looks wrong"></textarea>
+    <button class="feedback-submit" onclick="submitFeedback()">Save note</button>
+  </div>
+  <!-- Review tab -->
+  <div class="feedback-list" id="fb-review-panel" style="display:none">
+    <div id="fb-entries-container"><div class="feedback-empty">No feedback yet.</div></div>
+  </div>
+</div>
+
+<script>
+const IS_LOCAL_SERVER = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+let allData = null;
+let currentFilter = 'all';
+let filteredArticles = [];       // the current rendered list — used for prev/next
+let currentPanelId = null;       // article.id currently shown in panel
+let ignoredItems = new Set();    // "disc-{id}-{i}" or "missing-{id}-{i}"
+let ignoredArticles = new Map(); // article id → { id, title, ignoredAt }
+let feedbackEntries = [];        // all feedback notes
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+
+async function loadData() {
+  // Load ignored list in parallel
+  if (IS_LOCAL_SERVER) {
+    try {
+      const ig = await fetch('/api/ignored').then(r => r.json());
+      ignoredArticles = new Map((ig.ignored || []).map(e => [String(e.id), e]));
+      updateIgnoredFilterBtn();
+    } catch {}
+    // Load trend
+    loadTrend();
+    // Load feedback badge
+    loadFeedbackEntries();
+  }
+
+  try {
+    const res = await fetch('results/latest.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    allData = await res.json();
+    populateSummary();
+    render();
+  } catch (e) {
+    document.getElementById('table-container').innerHTML =
+      `<div class="empty">
+        <strong>No results file found.</strong><br><br>
+        Run the audit first:<br>
+        <code style="background:#1a1d27;padding:6px 12px;border-radius:4px;display:inline-block;margin-top:8px;">node audit.js</code><br><br>
+        Then open this dashboard — it reads from <code>results/latest.json</code>.
+      </div>`;
+  }
+}
+
+function populateSummary() {
+  const s = allData.summary;
+
+  // Timestamps + duration come from the stored summary (not recalculated)
+  document.getElementById('audit-meta').textContent =
+    `Audit run: ${s.auditDate} · ${s.totalArticles} articles · ${s.durationSeconds}s`;
+  const lr = s.checkLastRun || {};
+  const checkKeys = ['full','links','third-party','grammar','clean','contradictions'];
+  for (const k of checkKeys) {
+    const el = document.getElementById(`last-${k}`);
+    if (el) el.textContent = lr[k] ? timeAgo(lr[k]) : 'never run';
+  }
+  document.getElementById('stat-duration').textContent = s.durationSeconds + 's';
+
+  // All counts are recalculated live so ignored articles are excluded
+  recalcStats();
+}
+
+/** Recalculate stat cards from the live (non-ignored) article set. */
+function recalcStats() {
+  if (!allData?.articles) return;
+  const arts = allData.articles.filter(a => !ignoredArticles.has(String(a.id)));
+  document.getElementById('stat-total').textContent = arts.length;
+  document.getElementById('stat-ok').textContent = arts.filter(a => a.status === 'ok').length;
+  document.getElementById('stat-disc').textContent = arts.filter(a => ['discrepancies','multiple'].includes(a.status)).length;
+  document.getElementById('stat-critical').textContent = arts.reduce((n,a) => n + a.discrepancies.filter(d => d.severity === 'critical').length, 0);
+  document.getElementById('stat-missing').textContent = arts.filter(a => (a.missingContent||[]).length > 0).length;
+  document.getElementById('stat-links').textContent = arts.filter(a => (a.brokenLinks||[]).length > 0).length;
+  document.getElementById('stat-stale').textContent = arts.filter(a => a.stale).length;
+  document.getElementById('stat-3p').textContent = arts.filter(a => (a.thirdPartyIssues||[]).length > 0).length;
+  document.getElementById('stat-grammar').textContent = arts.filter(a => (a.grammarIssues||[]).length > 0).length;
+  document.getElementById('stat-contradictions').textContent = arts.filter(a => (a.contradictions||[]).length > 0).length;
+  document.getElementById('stat-nomatch').textContent = arts.filter(a => a.noGithubMatchReason).length;
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // If panel is open and the current article is still in filtered set, keep it open
+  render();
+}
+
+// ── Table rendering ────────────────────────────────────────────────────────────
+
+function statusBadge(article) {
+  const s = article.status;
+  if (s === 'ok') return '<span class="badge badge-ok">OK</span>';
+  if (s === 'discrepancies') {
+    const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+    if (crit > 0) return `<span class="badge badge-critical">⚠ ${crit} critical</span>`;
+    return `<span class="badge badge-high">${article.discrepancies.length} issues</span>`;
+  }
+  if (s === 'missing_content') return `<span class="badge badge-medium">✦ ${(article.missingContent||[]).length} missing</span>`;
+  if (s === 'broken_links') return `<span class="badge badge-link">${article.brokenLinks.length} broken links</span>`;
+  if (s === 'multiple' || s === 'both') {
+    const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+    const parts = [];
+    if (article.discrepancies.length) parts.push(`<span class="badge badge-${crit > 0 ? 'critical' : 'high'}">${crit > 0 ? '⚠ critical' : article.discrepancies.length + ' issues'}</span>`);
+    if ((article.missingContent||[]).length) parts.push(`<span class="badge badge-medium">✦ ${article.missingContent.length} missing</span>`);
+    if (article.brokenLinks.length) parts.push(`<span class="badge badge-link">${article.brokenLinks.length} links</span>`);
+    return `<div style="display:flex;flex-wrap:wrap;gap:4px">${parts.join('')}</div>`;
+  }
+  if (s === 'grammar') return `<span class="badge" style="background:rgba(167,139,250,.12);color:#a78bfa">✏ ${(article.grammarIssues||[]).length} grammar</span>`;
+  if (s === 'no_github_match') {
+    const reasons = {
+      'title_too_vague':    { label: 'title too vague',  tip: 'No useful keywords could be extracted from the article title.' },
+      'no_path_match':      { label: 'no path match',    tip: 'Keywords found but no GitHub files matched them.' },
+      'content_unreadable': { label: 'files unreadable', tip: 'Files found but content could not be fetched.' },
+    };
+    const r = reasons[article.noGithubMatchReason] || { label: 'no match', tip: 'No matching GitHub files found.' };
+    return `<span class="badge badge-unreviewed" title="${r.tip}">⚠ unreviewed</span>`;
+  }
+  if (s === 'error') return '<span class="badge badge-error">error</span>';
+  return `<span class="badge badge-unreviewed">${s}</span>`;
+}
+
+function discrepancyCount(article) {
+  const n = article.discrepancies.length;
+  const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+  if (n === 0) return '<span style="color:var(--text-muted)">—</span>';
+  if (crit > 0) return `<span style="color:var(--critical);font-weight:600">⚠ ${n}</span>`;
+  return `<span style="color:var(--text)">${n}</span>`;
+}
+
+function render() {
+  if (!allData) return;
+  const search = document.getElementById('search').value.toLowerCase();
+  let articles = allData.articles;
+
+  // Ignored view: show only ignored articles
+  if (currentFilter === 'ignored') {
+    const ignoredList = [...ignoredArticles.values()];
+    if (ignoredList.length === 0) {
+      document.getElementById('table-container').innerHTML = '<div class="empty">No ignored articles.</div>';
+      filteredArticles = [];
+      return;
+    }
+    // Build simple list instead of table
+    let html = `<div style="padding:16px 32px">
+      <p style="color:var(--text-muted);font-size:12px;margin-bottom:14px">These articles are skipped in all audit checks. Click Restore to include them again.</p>
+      <table><thead><tr>
+        <th style="width:70%">Article title</th>
+        <th style="width:20%">Ignored</th>
+        <th style="width:10%"></th>
+      </tr></thead><tbody>`;
+    for (const e of ignoredList) {
+      html += `<tr class="data-row">
+        <td>${escHtml(e.title)}</td>
+        <td style="color:var(--text-muted)">${timeAgo(e.ignoredAt)}</td>
+        <td><button class="details-btn" onclick="restoreArticle('${e.id}')">Restore</button></td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+    document.getElementById('table-container').innerHTML = html;
+    filteredArticles = [];
+    return;
+  }
+
+  // Normal views: exclude ignored articles
+  articles = articles.filter(a => !ignoredArticles.has(String(a.id)));
+
+  if (currentFilter === 'discrepancies') articles = articles.filter(a => a.discrepancies.length > 0);
+  else if (currentFilter === 'critical') articles = articles.filter(a => a.discrepancies.some(d => d.severity === 'critical'));
+  else if (currentFilter === 'missing_content') articles = articles.filter(a => (a.missingContent || []).length > 0);
+  else if (currentFilter === 'broken_links') articles = articles.filter(a => a.brokenLinks.length > 0);
+  else if (currentFilter === 'ok') articles = articles.filter(a => a.status === 'ok');
+  else if (currentFilter === 'no_github_match') articles = articles.filter(a => a.noGithubMatchReason);
+  else if (currentFilter === 'stale') articles = articles.filter(a => a.stale);
+  else if (currentFilter === 'third_party') articles = articles.filter(a => (a.thirdPartyIssues || []).length > 0);
+  else if (currentFilter === 'grammar') articles = articles.filter(a => (a.grammarIssues || []).length > 0);
+  else if (currentFilter === 'contradictions') articles = articles.filter(a => (a.contradictions || []).length > 0);
+
+  if (search) articles = articles.filter(a => a.title.toLowerCase().includes(search));
+
+  filteredArticles = articles;
+
+  if (articles.length === 0) {
+    document.getElementById('table-container').innerHTML = '<div class="empty">No articles match the current filter.</div>';
+    return;
+  }
+
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th style="width:27%">Article</th>
+          <th style="width:13%">Status</th>
+          <th style="width:6%">Disc.</th>
+          <th style="width:6%">Miss.</th>
+          <th style="width:6%">Links</th>
+          <th style="width:6%">3P</th>
+          <th style="width:6%">Gram.</th>
+          <th style="width:10%">Updated</th>
+          <th style="width:7%">GH</th>
+          <th style="width:13%"></th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  for (const article of articles) {
+    const updated = article.updatedAt ? new Date(article.updatedAt * 1000).toLocaleDateString() : '—';
+    const fileCount = article.githubFilesChecked.length;
+    const hasDetails = article.discrepancies.length > 0 || (article.missingContent||[]).length > 0 || article.brokenLinks.length > 0 || (article.grammarIssues||[]).length > 0 || fileCount > 0;
+    const isActive = article.id === currentPanelId ? ' active-row' : '';
+
+    html += `
+      <tr class="data-row${isActive}" onclick="openPanel('${article.id}')">
+        <td class="article-title">
+          <a href="${article.url}" target="_blank" onclick="event.stopPropagation()">${escHtml(article.title)}</a>
+        </td>
+        <td>${statusBadge(article)}</td>
+        <td>${discrepancyCount(article)}</td>
+        <td>${(article.missingContent||[]).length > 0 ? `<span style="color:var(--medium)">${article.missingContent.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${article.brokenLinks.length > 0 ? `<span style="color:var(--critical)">${article.brokenLinks.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${(article.thirdPartyIssues||[]).length > 0 ? `<span style="color:#fbbf24">${article.thirdPartyIssues.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td>${(article.grammarIssues||[]).length > 0 ? `<span style="color:#a78bfa">${article.grammarIssues.length}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+        <td style="color:var(--text-muted)">
+          ${updated}
+          ${article.stale ? `<br><span class="stale-age">🕐 ${articleAge(article.updatedAt)}</span>` : ''}
+        </td>
+        <td style="color:var(--text-muted)">${fileCount > 0 ? fileCount : '<span style="color:var(--border)">0</span>'}</td>
+        <td>${hasDetails ? `<button class="details-btn${isActive ? ' active' : ''}" onclick="event.stopPropagation();openPanel('${article.id}')">Details →</button>` : ''}</td>
+      </tr>`;
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('table-container').innerHTML = html;
+
+  // If panel is open but current article is no longer in filtered list, close it
+  if (currentPanelId && !filteredArticles.find(a => a.id === currentPanelId)) {
+    closePanel();
+  }
+
+  // Update nav count if panel is open
+  if (currentPanelId) updatePanelNav();
+}
+
+// ── Side panel ─────────────────────────────────────────────────────────────────
+
+function openPanel(id) {
+  const article = allData.articles.find(a => a.id == id);
+  if (!article) return;
+
+  const wasOpen = !!currentPanelId;
+  currentPanelId = article.id;
+
+  // Header
+  document.getElementById('panel-title').textContent = article.title;
+  document.getElementById('panel-ext-link').href = article.url;
+
+  // Chips
+  const chips = [];
+  const crit = article.discrepancies.filter(d => d.severity === 'critical').length;
+  if (crit > 0)                                chips.push(`<span class="panel-chip chip-critical">⚠ ${crit} critical</span>`);
+  if (article.discrepancies.length > crit)     chips.push(`<span class="panel-chip chip-disc">◈ ${article.discrepancies.length - crit} issues</span>`);
+  if ((article.missingContent||[]).length > 0) chips.push(`<span class="panel-chip chip-missing">✦ ${article.missingContent.length} missing</span>`);
+  if (article.brokenLinks.length > 0)          chips.push(`<span class="panel-chip chip-links">🔗 ${article.brokenLinks.length} broken</span>`);
+  if (article.githubFilesChecked.length > 0)   chips.push(`<span class="panel-chip chip-files">📁 ${article.githubFilesChecked.length} files</span>`);
+  if (article.stale)                           chips.push(`<span class="panel-chip chip-stale">🕐 ${articleAge(article.updatedAt)}</span>`);
+  if ((article.thirdPartyIssues||[]).length > 0) chips.push(`<span class="panel-chip chip-3p">🌐 ${article.thirdPartyIssues.length} 3rd-party</span>`);
+  if ((article.grammarIssues||[]).length > 0)    chips.push(`<span class="panel-chip chip-grammar">✏ ${article.grammarIssues.length} grammar</span>`);
+  if ((article.contradictions||[]).length > 0)   chips.push(`<span class="panel-chip chip-conflict">⚡ ${article.contradictions.length} contradiction${article.contradictions.length > 1 ? 's' : ''}</span>`);
+  if (article.status === 'no_github_match')    chips.push(`<span class="panel-chip chip-unreviewed">⚠ unreviewed</span>`);
+  if (chips.length === 0)                      chips.push(`<span class="panel-chip chip-ok">✓ No issues</span>`);
+  document.getElementById('panel-chips').innerHTML = chips.join('');
+
+  // Body content
+  document.getElementById('panel-body').innerHTML = buildPanelContent(article);
+
+  // Update ignore button
+  const ignBtn = document.getElementById('panel-ignore-btn');
+  if (ignBtn) {
+    const isIgnored = ignoredArticles.has(String(article.id));
+    ignBtn.textContent = isIgnored ? '↩ Restore' : '🚫 Ignore';
+    ignBtn.title = isIgnored ? 'Click to restore this article to audits' : 'Click to ignore this article in all audits';
+    ignBtn.style.display = IS_LOCAL_SERVER ? '' : 'none';
+  }
+
+  // Open
+  document.getElementById('side-panel').classList.add('open');
+  document.body.classList.add('panel-open'); // used only for backdrop visibility
+
+  updatePanelNav();
+  highlightActiveRow();
+
+  // Scroll panel to top when switching articles
+  document.getElementById('panel-body').scrollTop = 0;
+}
+
+function closePanel() {
+  currentPanelId = null;
+  const panel = document.getElementById('side-panel');
+  panel.classList.remove('open', 'expanded');
+  document.body.classList.remove('panel-open');
+  const btn = document.getElementById('panel-expand-btn');
+  if (btn) btn.textContent = '⤢';
+  highlightActiveRow();
+}
+
+function togglePanelExpand() {
+  const panel = document.getElementById('side-panel');
+  const btn   = document.getElementById('panel-expand-btn');
+  const isExpanded = panel.classList.toggle('expanded');
+  if (btn) btn.textContent = isExpanded ? '⤡' : '⤢';
+}
+
+function panelNav(dir) {
+  if (!filteredArticles.length) return;
+  const idx = filteredArticles.findIndex(a => a.id === currentPanelId);
+  const next = idx + dir;
+  if (next >= 0 && next < filteredArticles.length) {
+    openPanel(filteredArticles[next].id);
+  }
+}
+
+function updatePanelNav() {
+  const idx = filteredArticles.findIndex(a => a.id === currentPanelId);
+  const total = filteredArticles.length;
+  document.getElementById('panel-nav-count').textContent = total > 0 ? `${idx + 1} of ${total}` : '';
+  document.getElementById('panel-prev').disabled = idx <= 0;
+  document.getElementById('panel-next').disabled = idx >= total - 1;
+}
+
+function highlightActiveRow() {
+  document.querySelectorAll('tr.data-row').forEach(tr => {
+    tr.classList.remove('active-row');
+  });
+  document.querySelectorAll('.details-btn').forEach(b => b.classList.remove('active'));
+
+  if (currentPanelId) {
+    // Find the row — rows don't have IDs but we can match by the onclick attribute
+    document.querySelectorAll(`tr.data-row`).forEach(tr => {
+      if (tr.getAttribute('onclick') && tr.getAttribute('onclick').includes(`'${currentPanelId}'`)) {
+        tr.classList.add('active-row');
+      }
+    });
+  }
+}
+
+// ── Panel content builder ─────────────────────────────────────────────────────
+
+function buildPanelContent(article) {
+  let html = '';
+
+  // Stale warning banner
+  if (article.stale) {
+    const age = articleAge(article.updatedAt);
+    const hasIssues = article.discrepancies.length > 0 || (article.missingContent||[]).length > 0 || article.brokenLinks.length > 0;
+    html += `<div style="background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.2);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <div style="color:#94a3b8;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">🕐 Stale article — ${age}</div>
+      <div style="color:#cbd5e1;font-size:12px;line-height:1.5">${hasIssues
+        ? 'This article has not been updated in over 2 years <strong>and</strong> has issues flagged below. Prioritize for review.'
+        : 'This article has not been updated in over 2 years. No automated issues were found, but the content should be manually verified for accuracy.'
+      }</div>
+    </div>`;
+  }
+
+  // ── No GitHub Match warning
+  if (article.status === 'no_github_match') {
+    const noMatchMessages = {
+      'title_too_vague':    'No keywords could be extracted from the article title — it\'s too generic to match against GitHub paths. <strong>This article received zero automated review.</strong> Manually map it to the relevant source files, or rename it with more specific terms (e.g. "HIPAA BAA setup in Drata" instead of "HIPAA compliance checklist").',
+      'no_path_match':      'Keywords were found but no GitHub files matched them — the code may use different naming conventions or live in an unexpected directory. <strong>This article received zero automated review.</strong> Search GitHub manually for the relevant implementation files and link them to this article.',
+      'content_unreadable': 'Matching files were found but their content couldn\'t be fetched — check that your GitHub token has <code>Contents: read</code> permission. <strong>This article received zero automated review.</strong> Re-run the audit after verifying token permissions.',
+    };
+    const msg = noMatchMessages[article.noGithubMatchReason] || '<strong>This article received zero automated review.</strong> No matching GitHub files were found. Manually verify the content is accurate.';
+    html += `<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px">
+      <div style="color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">⚠ Unreviewed — No GitHub Match</div>
+      <div style="color:#fde68a;font-size:12px;line-height:1.55">${msg}</div>
+    </div>`;
+  }
+
+  // ── Discrepancies
+  if (article.discrepancies.length > 0) {
+    const items = currentFilter === 'critical'
+      ? article.discrepancies.filter(d => d.severity === 'critical')
+      : article.discrepancies;
+
+    const visibleItems = items.filter((d, i) => !ignoredItems.has(`disc-${article.id}-${i}`));
+    const ignoredCount = items.length - visibleItems.length;
+
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>Discrepancies (${visibleItems.length})</span><hr></div>`;
+
+    if (ignoredCount > 0) {
+      html += `<div class="ignored-notice">${ignoredCount} ignored — <a href="#" onclick="restoreIgnored('${article.id}');return false;" style="color:var(--accent)">restore</a></div>`;
+    }
+
+    for (let i = 0; i < items.length; i++) {
+      const d = items[i];
+      const ignoreKey = `disc-${article.id}-${i}`;
+      if (ignoredItems.has(ignoreKey)) continue;
+      const fixId = `fix-${article.id}-${i}`;
+      const conflictBorder = d.sourcesConflict ? 'border-color:rgba(251,191,36,.4)' : '';
+      html += `
+        <div class="disc-card" style="${conflictBorder}">
+          <div class="disc-header">
+            <span class="disc-num">${i + 1}</span>
+            <span class="badge badge-${d.severity}">${d.severity}</span>
+            <span class="disc-header-title">${escHtml(d.field)}</span>
+            ${d.sourcesConflict ? `<span style="background:rgba(251,191,36,.15);color:#fbbf24;border-radius:4px;font-size:10px;font-weight:700;padding:2px 8px;letter-spacing:.03em">⚡ SOURCES CONFLICT</span>` : ''}
+            ${d.action ? `<span class="disc-action-tag">${escHtml(d.action)}</span>` : ''}
+            ${d.githubFile ? `<span class="disc-file" title="${escHtml(d.githubFile)}">📁 ${escHtml(d.githubFile)}</span>` : ''}
+            <button class="ignore-btn" onclick="ignoreItem('${ignoreKey}', '${article.id}')">Ignore</button>
+          </div>
+          <div class="disc-body">
+            <div class="disc-field">
+              <div class="disc-field-label">Article says</div>
+              <div class="disc-field-value">${escHtml(d.articleSays)}</div>
+            </div>
+            ${d.drataSays ? `<div class="disc-field">
+              <div class="disc-field-label">Drata codebase says</div>
+              <div class="disc-field-value">${escHtml(d.drataSays)}</div>
+            </div>` : ''}
+            ${d.thirdPartySays ? `<div class="disc-field">
+              <div class="disc-field-label">Third-party product says</div>
+              <div class="disc-field-value">${escHtml(d.thirdPartySays)}</div>
+            </div>` : ''}
+            ${d.sourcesConflict && d.conflictNote ? `<div class="disc-field" style="background:rgba(251,191,36,.05);border-color:rgba(251,191,36,.2)">
+              <div class="disc-field-label" style="color:#fbbf24">⚡ Conflict — verify manually</div>
+              <div class="disc-field-value" style="color:#fde68a">${escHtml(d.conflictNote)}</div>
+            </div>` : ''}
+            ${d.suggestedFix ? `<div class="disc-field row-fix">
+              <div class="disc-field-label">Suggested fix <button class="copy-btn" onclick="copyFix('${fixId}')">Copy</button></div>
+              <div class="disc-field-value" id="${fixId}">${escHtml(d.suggestedFix)}</div>
+            </div>` : ''}
+            ${d.explanation ? `<div class="disc-field row-why">
+              <div class="disc-field-label">Why it matters</div>
+              <div class="disc-field-value">${escHtml(d.explanation)}</div>
+            </div>` : ''}
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── Missing content
+  if ((article.missingContent || []).length > 0 && currentFilter !== 'critical') {
+    const allItems = article.missingContent;
+    const visibleItems = allItems.filter((m, i) => !ignoredItems.has(`missing-${article.id}-${i}`));
+    const ignoredCount = allItems.length - visibleItems.length;
+
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>Missing Content (${visibleItems.length})</span><hr></div>`;
+
+    if (ignoredCount > 0) {
+      html += `<div class="ignored-notice">${ignoredCount} ignored — <a href="#" onclick="restoreIgnored('${article.id}');return false;" style="color:var(--accent)">restore</a></div>`;
+    }
+
+    for (let i = 0; i < allItems.length; i++) {
+      const m = allItems[i];
+      const ignoreKey = `missing-${article.id}-${i}`;
+      if (ignoredItems.has(ignoreKey)) continue;
+      html += `
+        <div class="missing-card">
+          <div class="missing-header">
+            <span class="disc-num">${i + 1}</span>
+            <span class="badge badge-${m.priority === 'high' ? 'high' : m.priority === 'low' ? 'nomatch' : 'medium'}">${m.priority}</span>
+            <span style="font-size:12px;font-weight:600;flex:1">${escHtml(m.feature)}</span>
+            ${m.githubFile ? `<span class="disc-file" title="${escHtml(m.githubFile)}">📁 ${escHtml(m.githubFile)}</span>` : ''}
+            <button class="ignore-btn" onclick="ignoreItem('${ignoreKey}', '${article.id}')">Ignore</button>
+          </div>
+          <div class="missing-body">
+            ${m.source ? `<div class="missing-field">
+              <div class="missing-field-label">Source</div>
+              <div class="missing-field-value" style="color:var(--text-muted)">${m.source === 'github' ? '📁 Drata codebase' : m.source === 'third-party-knowledge' ? '🌐 Third-party product knowledge' : '📁🌐 Both codebase + third-party'}</div>
+            </div>` : ''}
+            <div class="missing-field">
+              <div class="missing-field-label">Evidence</div>
+              <div class="missing-field-value" style="font-family:'SF Mono','Fira Code',monospace;font-size:11px;color:#7dd3fc">${escHtml(m.evidence || m.githubEvidence || '')}</div>
+            </div>
+            <div class="missing-field row-suggestion">
+              <div class="missing-field-label">Suggested addition</div>
+              <div class="missing-field-value">${escHtml(m.suggestedAddition)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── Broken links
+  if (article.brokenLinks.length > 0 && (currentFilter === 'all' || currentFilter === 'broken_links')) {
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>Broken Links (${article.brokenLinks.length})</span><hr></div>`;
+    for (const link of article.brokenLinks) {
+      html += `
+        <div class="broken-link-item">
+          <div class="broken-link-url">${escHtml(link.url)}</div>
+          <div class="broken-link-status">Status: ${link.status || 'timeout/error'}${link.error ? ` — ${escHtml(link.error)}` : ''}</div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── Third-party terminology issues
+  const tpIssues = article.thirdPartyIssues || [];
+  if (tpIssues.length > 0) {
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>🌐 Outdated 3rd-party terms (${tpIssues.length})</span><hr></div>`;
+    for (let i = 0; i < tpIssues.length; i++) {
+      const tp = tpIssues[i];
+      const fixId = `tp-fix-${article.id}-${i}`;
+      const sevClass = tp.severity === 'critical' ? 'badge-critical' : tp.severity === 'high' ? 'badge-high' : tp.severity === 'medium' ? 'badge-medium' : 'badge-low';
+      html += `
+        <div class="disc-card">
+          <div class="disc-header">
+            <div class="disc-num">${i + 1}</div>
+            <div class="disc-header-title">${escHtml(tp.term)}</div>
+            <span class="badge ${sevClass}">${tp.severity}</span>
+            ${tp.product ? `<span style="background:rgba(56,189,248,.1);color:#38bdf8;border-radius:4px;font-size:10px;font-weight:600;padding:2px 8px">${escHtml(tp.product)}</span>` : ''}
+          </div>
+          <div class="disc-body">
+            <div class="disc-field">
+              <div class="disc-field-label">Found in article</div>
+              <div class="disc-field-value">"${escHtml(tp.context)}"</div>
+            </div>
+            <div class="disc-field">
+              <div class="disc-field-label">Current term (2026)</div>
+              <div class="disc-field-value">${escHtml(tp.currentTerm)}</div>
+            </div>
+            <div class="disc-field row-fix">
+              <div class="disc-field-label">Suggested fix <button class="copy-btn" onclick="copyFix('${fixId}')">Copy</button></div>
+              <div class="disc-field-value" id="${fixId}">${escHtml(tp.suggestedFix)}</div>
+            </div>
+            ${tp.explanation ? `<div class="disc-field row-why">
+              <div class="disc-field-label">Why</div>
+              <div class="disc-field-value">${escHtml(tp.explanation)}</div>
+            </div>` : ''}
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── Grammar issues
+  const grammarIssues = article.grammarIssues || [];
+  if (grammarIssues.length > 0) {
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>✏ Grammar Issues (${grammarIssues.length})</span><hr></div>`;
+    for (let i = 0; i < grammarIssues.length; i++) {
+      const g = grammarIssues[i];
+      const fixId = `gram-fix-${article.id}-${i}`;
+      const sevClass = g.severity === 'high' ? 'badge-high' : g.severity === 'low' ? 'badge-low' : 'badge-medium';
+      html += `
+        <div class="disc-card">
+          <div class="disc-header">
+            <div class="disc-num">${i + 1}</div>
+            <span class="badge ${sevClass}">${g.severity}</span>
+            <span class="disc-header-title">${escHtml(g.errorType)}</span>
+          </div>
+          <div class="disc-body">
+            <div class="disc-field">
+              <div class="disc-field-label">Found in article</div>
+              <div class="disc-field-value" style="font-style:italic">"${escHtml(g.excerpt)}"</div>
+            </div>
+            <div class="disc-field">
+              <div class="disc-field-label">Issue</div>
+              <div class="disc-field-value">${escHtml(g.issue)}</div>
+            </div>
+            <div class="disc-field row-fix">
+              <div class="disc-field-label">Corrected version <button class="copy-btn" onclick="copyFix('${fixId}')">Copy</button></div>
+              <div class="disc-field-value" id="${fixId}">${escHtml(g.suggestedFix)}</div>
+            </div>
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── Cross-article contradictions
+  const contradictions = article.contradictions || [];
+  if (contradictions.length > 0) {
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>⚡ Contradicts other articles (${contradictions.length})</span><hr></div>`;
+    for (let i = 0; i < contradictions.length; i++) {
+      const c = contradictions[i];
+      const sevClass = c.severity === 'high' ? 'badge-high' : c.severity === 'low' ? 'badge-low' : 'badge-medium';
+      html += `
+        <div class="disc-card" style="border-color:rgba(251,191,36,.35)">
+          <div class="disc-header" style="background:rgba(251,191,36,.06)">
+            <div class="disc-num">${i + 1}</div>
+            <span class="badge ${sevClass}">${c.severity}</span>
+            <span class="disc-header-title">⚡ ${escHtml(c.topic)}</span>
+            <a href="${escHtml(c.withArticleUrl)}" target="_blank"
+               style="color:var(--accent);font-size:10px;text-decoration:none;flex-shrink:0"
+               onclick="event.stopPropagation()">↗ View other article</a>
+          </div>
+          <div class="disc-body">
+            <div class="disc-field">
+              <div class="disc-field-label">This article says</div>
+              <div class="disc-field-value">"${escHtml(c.thisClaim)}"</div>
+            </div>
+            <div class="disc-field" style="background:rgba(251,191,36,.04);border-color:rgba(251,191,36,.2)">
+              <div class="disc-field-label" style="color:#fbbf24">Conflicts with: ${escHtml(c.withArticleTitle)}</div>
+              <div class="disc-field-value" style="color:#fde68a">"${escHtml(c.otherClaim)}"</div>
+            </div>
+            ${c.explanation ? `<div class="disc-field row-why">
+              <div class="disc-field-label">Why it matters</div>
+              <div class="disc-field-value">${escHtml(c.explanation)}</div>
+            </div>` : ''}
+          </div>
+        </div>`;
+    }
+    html += '</div>';
+  }
+
+  // ── GitHub files
+  if (article.githubFilesChecked.length > 0 && currentFilter === 'all') {
+    const pass2Label = article.pass2Match
+      ? `<span style="background:rgba(234,179,8,.1);color:var(--medium);border-radius:4px;font-size:10px;font-weight:600;padding:2px 7px;margin-left:6px" title="Matched by scanning file contents, not file paths — lower confidence">content match</span>`
+      : '';
+    html += `<div class="panel-section">
+      <div class="panel-section-title"><span>GitHub files compared</span>${pass2Label}<hr></div>
+      <div class="github-files">`;
+    for (const f of article.githubFilesChecked) {
+      html += `<span class="github-file">${escHtml(f)}</span>`;
+    }
+    html += '</div></div>';
+  }
+
+  if (article.error) {
+    html += `<div style="margin-top:16px;color:var(--critical);font-size:12px">⚠ Audit error: ${escHtml(article.error)}</div>`;
+  }
+
+  return html || '<div style="color:var(--text-muted);font-size:13px;padding:20px 0">No issues found for this article.</div>';
+}
+
+// ── Ignore / restore ───────────────────────────────────────────────────────────
+
+function ignoreItem(key, articleId) {
+  ignoredItems.add(key);
+  if (currentPanelId === articleId) {
+    const article = allData.articles.find(a => a.id == articleId);
+    document.getElementById('panel-body').innerHTML = buildPanelContent(article);
+  }
+}
+
+function restoreIgnored(articleId) {
+  for (const key of [...ignoredItems]) {
+    if (key.includes(`-${articleId}-`)) ignoredItems.delete(key);
+  }
+  if (currentPanelId === articleId) {
+    const article = allData.articles.find(a => a.id == articleId);
+    document.getElementById('panel-body').innerHTML = buildPanelContent(article);
+  }
+}
+
+// ── Copy fix ───────────────────────────────────────────────────────────────────
+
+function copyFix(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = el.closest('.disc-field').querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+  });
+}
+
+// ── Keyboard navigation ────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closePanel(); return; }
+  if (!currentPanelId) return;
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); panelNav(1); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); panelNav(-1); }
+});
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function articleAge(updatedAt) {
+  if (!updatedAt) return null;
+  const years = (Date.now() / 1000 - updatedAt) / (365.25 * 24 * 60 * 60);
+  if (years >= 2) return years.toFixed(1) + ' yrs old';
+  const months = Math.round(years * 12);
+  return months + ' mo old';
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+loadData();
+
+// ── Run button logic ───────────────────────────────────────────────────────────
+
+// ── Export CSV ────────────────────────────────────────────────────────────────
+
+function exportCSV() {
+  if (!allData?.articles?.length) { alert('No data to export — run the audit first.'); return; }
+  const headers = ['Title','URL','Status','Discrepancies','Missing Content','Broken Links','3rd-Party Issues','Grammar Issues','Contradictions','Last Updated','Stale'];
+  const rows = allData.articles.map(a => [
+    `"${(a.title || '').replace(/"/g, '""')}"`,
+    a.url || '',
+    a.status || '',
+    a.discrepancies?.length || 0,
+    a.missingContent?.length || 0,
+    a.brokenLinks?.length || 0,
+    a.thirdPartyIssues?.length || 0,
+    a.grammarIssues?.length || 0,
+    a.contradictions?.length || 0,
+    a.updatedAt ? new Date(a.updatedAt * 1000).toLocaleDateString() : '',
+    a.stale ? 'yes' : '',
+  ].join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `drata-audit-${allData.summary?.auditDate || 'export'}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ── Trend over time ───────────────────────────────────────────────────────────
+
+async function loadTrend() {
+  try {
+    const data = await fetch('/api/history').then(r => r.json());
+    const history = (data.history || []).slice().reverse().slice(0, 15); // last 15 runs, newest first
+    const sec = document.getElementById('trend-section');
+    const countEl = document.getElementById('trend-run-count');
+    if (!history.length) { if (sec) sec.style.display = 'none'; return; }
+    if (sec) sec.style.display = '';
+    if (countEl) countEl.textContent = `(${history.length} run${history.length > 1 ? 's' : ''})`;
+
+    let html = `<table class="trend-table">
+      <thead><tr>
+        <th>Date</th><th>Total</th><th>OK</th>
+        <th>Disc.</th><th>Links</th><th>3P</th><th>Grammar</th><th>Contradictions</th><th>Duration</th>
+      </tr></thead><tbody>`;
+    for (const r of history) {
+      const issueCount = (r.withDiscrepancies||0) + (r.withBrokenLinks||0);
+      html += `<tr>
+        <td>${r.date || r.runAt?.split('T')[0] || '—'}</td>
+        <td>${r.totalArticles || '—'}</td>
+        <td class="trend-ok">${r.ok ?? '—'}</td>
+        <td class="${(r.withDiscrepancies||0) > 0 ? 'trend-bad' : ''}">${r.withDiscrepancies ?? '—'}</td>
+        <td class="${(r.withBrokenLinks||0) > 0 ? 'trend-bad' : ''}">${r.withBrokenLinks ?? '—'}</td>
+        <td>${r.withThirdPartyIssues ?? '—'}</td>
+        <td>${r.withGrammarIssues ?? '—'}</td>
+        <td>${r.withContradictions ?? '—'}</td>
+        <td style="color:var(--text-muted)">${r.durationSeconds ? r.durationSeconds + 's' : '—'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    document.getElementById('trend-content').innerHTML = html;
+  } catch {}
+}
+
+function toggleTrend() {
+  const toggle = document.getElementById('trend-toggle');
+  const body   = document.getElementById('trend-body');
+  toggle.classList.toggle('open');
+  body.classList.toggle('open');
+}
+
+// ── Ignore / restore articles ─────────────────────────────────────────────────
+
+function updateIgnoredFilterBtn() {
+  const btn = document.getElementById('filter-ignored');
+  if (!btn) return;
+  if (ignoredArticles.size > 0) {
+    btn.style.display = '';
+    btn.textContent = `🚫 Ignored (${ignoredArticles.size})`;
+  } else {
+    btn.style.display = 'none';
+    if (currentFilter === 'ignored') setFilter('all', document.querySelector('[data-filter="all"]'));
+  }
+}
+
+async function toggleIgnore() {
+  if (!currentPanelId || !IS_LOCAL_SERVER) return;
+  const article = allData.articles.find(a => a.id == currentPanelId);
+  if (!article) return;
+  const id = String(article.id);
+  if (ignoredArticles.has(id)) {
+    await restoreArticle(id);
+  } else {
+    try {
+      await fetch('/api/ignored', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, title: article.title }),
+      });
+      ignoredArticles.set(id, { id, title: article.title, ignoredAt: new Date().toISOString() });
+      updateIgnoredFilterBtn();
+      recalcStats();
+      closePanel();
+      render();
+    } catch (e) { alert('Could not save — make sure server.js is running.'); }
+  }
+}
+
+async function restoreArticle(id) {
+  try {
+    await fetch(`/api/ignored/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    ignoredArticles.delete(String(id));
+    updateIgnoredFilterBtn();
+    recalcStats();
+    render();
+  } catch (e) { alert('Could not restore — make sure server.js is running.'); }
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────────
+
+let fbCurrentTab = 'write';
+
+async function loadFeedbackEntries() {
+  try {
+    const data = await fetch('/api/feedback').then(r => r.json());
+    feedbackEntries = data.feedback || [];
+    updateFeedbackBadge();
+    if (fbCurrentTab === 'review') renderFeedbackEntries();
+  } catch {}
+}
+
+function updateFeedbackBadge() {
+  const unresolved = feedbackEntries.filter(e => !e.resolved).length;
+  const badge = document.getElementById('fab-badge');
+  const tabBadge = document.getElementById('fb-unresolved-badge');
+  if (badge) { badge.style.display = unresolved > 0 ? 'flex' : 'none'; badge.textContent = unresolved; }
+  if (tabBadge) { tabBadge.style.display = unresolved > 0 ? '' : 'none'; tabBadge.textContent = unresolved; }
+}
+
+function renderFeedbackEntries() {
+  const container = document.getElementById('fb-entries-container');
+  if (!container) return;
+  if (!feedbackEntries.length) {
+    container.innerHTML = '<div class="feedback-empty">No feedback yet. Use the Write tab to capture notes.</div>';
+    return;
+  }
+  const sorted = [...feedbackEntries].sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+  container.innerHTML = sorted.map(e => `
+    <div class="feedback-entry" id="fb-entry-${e.id}" style="${e.resolved ? 'opacity:.5' : ''}">
+      <div class="feedback-entry-text">${escHtml(e.text)}</div>
+      <div class="feedback-entry-meta">
+        <span class="feedback-entry-date">${timeAgo(e.createdAt)}</span>
+        <div class="feedback-entry-actions">
+          <button class="feedback-resolve-btn${e.resolved ? ' resolved' : ''}" onclick="toggleResolve('${e.id}',${!e.resolved})">
+            ${e.resolved ? '↩ Reopen' : '✓ Resolve'}
+          </button>
+          <button class="feedback-delete-btn" onclick="deleteFeedback('${e.id}')">✕</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openFeedback() {
+  document.getElementById('feedback-overlay').classList.add('open');
+  document.getElementById('feedback-modal').classList.add('open');
+  if (fbCurrentTab === 'review') renderFeedbackEntries();
+}
+
+function closeFeedback() {
+  document.getElementById('feedback-overlay').classList.remove('open');
+  document.getElementById('feedback-modal').classList.remove('open');
+}
+
+function switchFbTab(tab) {
+  fbCurrentTab = tab;
+  document.getElementById('fb-tab-write').classList.toggle('active', tab === 'write');
+  document.getElementById('fb-tab-review').classList.toggle('active', tab === 'review');
+  document.getElementById('fb-write-panel').style.display  = tab === 'write'  ? '' : 'none';
+  document.getElementById('fb-review-panel').style.display = tab === 'review' ? '' : 'none';
+  if (tab === 'review') renderFeedbackEntries();
+}
+
+async function submitFeedback() {
+  const ta = document.getElementById('fb-textarea');
+  const text = ta?.value?.trim();
+  if (!text) return;
+  if (!IS_LOCAL_SERVER) { alert('Start server.js first: node server.js'); return; }
+  try {
+    const data = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    }).then(r => r.json());
+    feedbackEntries.push(data.entry);
+    updateFeedbackBadge();
+    ta.value = '';
+    // Brief confirmation
+    const btn = document.querySelector('.feedback-submit');
+    btn.textContent = '✓ Saved!'; btn.style.background = 'var(--ok)';
+    setTimeout(() => { btn.textContent = 'Save note'; btn.style.background = ''; }, 1500);
+  } catch (e) { alert('Could not save feedback.'); }
+}
+
+async function toggleResolve(id, resolved) {
+  try {
+    await fetch(`/api/feedback/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resolved }),
+    });
+    feedbackEntries = feedbackEntries.map(e => String(e.id) === String(id) ? { ...e, resolved } : e);
+    updateFeedbackBadge();
+    renderFeedbackEntries();
+  } catch {}
+}
+
+async function deleteFeedback(id) {
+  try {
+    await fetch(`/api/feedback/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    feedbackEntries = feedbackEntries.filter(e => String(e.id) !== String(id));
+    updateFeedbackBadge();
+    renderFeedbackEntries();
+  } catch {}
+}
+let pollTimer    = null;
+let lastLogCount = 0;
+const CHECK_TYPES = ['full','links','third-party','grammar','clean','contradictions'];
+
+// Disable all run buttons when not on local server
+if (!IS_LOCAL_SERVER) {
+  CHECK_TYPES.forEach(k => {
+    const btn = document.getElementById(`run-${k}`);
+    if (btn) { btn.disabled = true; btn.title = 'Start server.js first: node server.js'; }
+  });
+}
+
+async function startCheck(checkType) {
+  if (!IS_LOCAL_SERVER) return;
+  try {
+    const limitVal      = document.getElementById('audit-limit')?.value;
+    const collectionVal = document.getElementById('audit-collection')?.value?.trim();
+    const limit         = limitVal ? parseInt(limitVal, 10) : null;
+    const endpoint      = checkType === 'full' ? '/api/run' : `/api/run/${checkType}`;
+    const payload       = {};
+    if (limit) payload.limit = limit;
+    if (collectionVal) payload.collection = collectionVal;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.status === 409) {
+      const data = await res.json();
+      alert(`${data.activeCheck || 'A check'} is already running.`);
+      return;
+    }
+    setRunning(checkType, true);
+    startPolling();
+  } catch (e) {
+    alert('Could not reach server. Make sure you started it with: node server.js');
+  }
+}
+
+function setRunning(checkType, running) {
+  const panel = document.getElementById('progress-panel');
+
+  if (running) {
+    // Disable all buttons while running
+    CHECK_TYPES.forEach(k => {
+      const btn = document.getElementById(`run-${k}`);
+      if (btn) { btn.disabled = true; btn.classList.add('running'); }
+    });
+    const activeBtn = document.getElementById(`run-${checkType}`);
+    if (activeBtn) {
+      const limitVal = document.getElementById('audit-limit')?.value;
+      const collVal  = document.getElementById('audit-collection')?.value?.trim();
+      const suffix   = [limitVal ? `limit:${limitVal}` : '', collVal ? collVal : ''].filter(Boolean).join(', ');
+      const suffixStr = suffix ? ` (${suffix})` : '';
+      const labels = { full: `⏳ Running${suffixStr}…`, links: '⏳ Checking links…',
+        'third-party': '⏳ Scanning 3rd-party…', grammar: '⏳ Checking grammar…',
+        clean: `⏳ Re-auditing clean${suffixStr}…`, contradictions: '⏳ Scanning contradictions…' };
+      activeBtn.textContent = labels[checkType] || '⏳ Running…';
+    }
+    if (panel) panel.classList.add('visible');
+  } else {
+    // Re-enable all buttons
+    CHECK_TYPES.forEach(k => {
+      const btn = document.getElementById(`run-${k}`);
+      if (btn) { btn.disabled = false; btn.classList.remove('running'); }
+    });
+    // Restore button labels
+    const labels = { full: '🚀 Full Audit', links: '🔗 Links', 'third-party': '🌐 3rd-Party',
+                     grammar: '✏ Grammar', clean: '✓ Clean Only', contradictions: '⚡ Contradictions' };
+    CHECK_TYPES.forEach(k => {
+      const btn = document.getElementById(`run-${k}`);
+      if (btn) btn.textContent = labels[k];
+    });
+  }
+}
+
+function startPolling() { clearInterval(pollTimer); pollTimer = setInterval(pollStatus, 2000); }
+
+async function pollStatus() {
+  if (!IS_LOCAL_SERVER) return;
+  try {
+    const [statusRes, logsRes] = await Promise.all([
+      fetch('/api/status').then(r => r.json()),
+      fetch('/api/logs').then(r => r.json()),
+    ]);
+
+    const pct         = statusRes.progress || 0;
+    const activeCheck = statusRes.activeCheck || 'full';
+    document.getElementById('progress-bar').style.width = pct + '%';
+    document.getElementById('progress-pct').textContent = pct + '%';
+    document.getElementById('progress-label').textContent = statusRes.running
+      ? `Running '${activeCheck}'… (${pct}% complete)`
+      : (pct === 100 ? 'Complete ✓' : 'Last run finished');
+
+    // Update per-button last-run timestamps from server state
+    const cs = statusRes.checkState || {};
+    for (const k of CHECK_TYPES) {
+      const el = document.getElementById(`last-${k}`);
+      if (el && cs[k]?.lastRunAt) el.textContent = timeAgo(cs[k].lastRunAt);
+    }
+
+    const logBox = document.getElementById('log-box');
+    const logs   = logsRes.logs || [];
+    if (logs.length > lastLogCount) {
+      for (const entry of logs.slice(lastLogCount)) {
+        const div = document.createElement('div');
+        div.className = 'log-line' +
+          (entry.line.includes('ERROR') || entry.line.includes('[stderr]') ? ' log-error' : '') +
+          (entry.line.includes('COMPLETE') || entry.line.includes('exit code 0')  ? ' log-done'  : '');
+        div.textContent = entry.line;
+        logBox.appendChild(div);
+      }
+      lastLogCount = logs.length;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    if (!statusRes.running) {
+      clearInterval(pollTimer);
+      setRunning(activeCheck, false);
+      setTimeout(() => loadData(), 1000); // refresh results after run completes
+    }
+  } catch (e) { clearInterval(pollTimer); }
+}
+
+// On load: resume polling if something is already running
+if (IS_LOCAL_SERVER) {
+  fetch('/api/status').then(r => r.json()).then(s => {
+    if (s.running && s.activeCheck) { setRunning(s.activeCheck, true); startPolling(); }
+  }).catch(() => {});
+}
+
+// ── Utility: human-readable time ago ─────────────────────────────────────────
+
+function timeAgo(isoStr) {
+  if (!isoStr) return 'never run';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+// ── Replace Term ──────────────────────────────────────────────────────────────
+
+let rtItems = []; // { article, occurrences, snippets, customReplacement, approved, rejected, done, error }
+
+function openReplaceTerm() {
+  document.getElementById('rt-overlay').classList.add('open');
+  document.getElementById('rt-find').focus();
+}
+function closeReplaceTerm() {
+  document.getElementById('rt-overlay').classList.remove('open');
+}
+function rtOverlayClick(e) {
+  if (e.target === document.getElementById('rt-overlay')) closeReplaceTerm();
+}
+
+/** Strip HTML tags for plain-text search */
+function rtStripHtml(html) {
+  return (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Build context snippet around a match */
+function rtSnippet(text, index, matchLen, windowSize = 80) {
+  const start = Math.max(0, index - windowSize);
+  const end   = Math.min(text.length, index + matchLen + windowSize);
+  const pre   = (start > 0 ? '…' : '') + escHtml(text.slice(start, index));
+  const match = `<span class="rt-find">${escHtml(text.slice(index, index + matchLen))}</span>`;
+  const post  = escHtml(text.slice(index + matchLen, end)) + (end < text.length ? '…' : '');
+  return pre + match + post;
+}
+
+/** Same snippet but showing the replacement */
+function rtSnippetReplaced(text, index, matchLen, replacement, windowSize = 80) {
+  const start = Math.max(0, index - windowSize);
+  const end   = Math.min(text.length, index + matchLen + windowSize);
+  const pre   = (start > 0 ? '…' : '') + escHtml(text.slice(start, index));
+  const rep   = replacement ? `<span class="rt-replace">${escHtml(replacement)}</span>` : '<span class="rt-find" style="text-decoration:line-through">[removed]</span>';
+  const post  = escHtml(text.slice(index + matchLen, end)) + (end < text.length ? '…' : '');
+  return pre + rep + post;
+}
+
+function rtSearch() {
+  const find = document.getElementById('rt-find').value.trim();
+  if (!find) { alert('Enter a term to search for.'); return; }
+  if (!allData?.articles?.length) { alert('Load audit data first.'); return; }
+
+  const replaceTerm = document.getElementById('rt-replace').value.trim();
+  const regex = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+
+  rtItems = [];
+  for (const article of allData.articles) {
+    const plainText = rtStripHtml(article.body || '');
+    const matches = [...plainText.matchAll(regex)];
+    if (!matches.length) continue;
+
+    // Build up to 3 context snippets
+    const snippets = matches.slice(0, 3).map(m => rtSnippet(plainText, m.index, m[0].length));
+
+    rtItems.push({
+      article,
+      occurrences: matches.length,
+      snippets,
+      customReplacement: replaceTerm, // user can override per-article
+        customBody: null,       // null = auto-replace; string = user directly edited full body
+        previewOpen: false,
+      approved: false,
+      rejected: false,
+      done: false,
+      error: null,
+    });
+  }
+
+  const header = document.getElementById('rt-results-header');
+  const info   = document.getElementById('rt-results-info');
+  header.style.display = rtItems.length ? '' : 'none';
+  info.innerHTML = rtItems.length
+    ? `Found <strong>"${escHtml(find)}"</strong> in <strong>${rtItems.length}</strong> article${rtItems.length > 1 ? 's' : ''}${replaceTerm ? ` → replace with <strong>"${escHtml(replaceTerm)}"</strong>` : ' → <strong>remove term</strong>'}`
+    : '';
+
+  rtRender();
+  rtUpdateApplyBtn();
+}
+
+function rtRender() {
+  const find = document.getElementById('rt-find').value.trim();
+  const list = document.getElementById('rt-results-list');
+
+  if (!rtItems.length) {
+    list.innerHTML = `<div class="rt-empty">No articles contain "<strong>${escHtml(find)}</strong>".</div>`;
+    return;
+  }
+
+  list.innerHTML = rtItems.map((item, idx) => {
+    const stateClass = item.approved ? 'approved' : item.rejected ? 'rejected' : '';
+    const doneLabel  = item.done ? ' ✓ Applied' : item.error ? ` ✗ ${item.error}` : '';
+    const snippetsHtml = item.snippets.map(s =>
+      `<div class="rt-snippet">${s}</div>`
+    ).join('');
+    const find = document.getElementById('rt-find').value.trim();
+    const previewBody = item.customBody !== null
+      ? item.customBody
+      : rtReplaceInBody(item.article.body || '', find, item.customReplacement);
+    const isModified = item.customBody !== null;
+
+    return `
+    <div class="rt-article-card ${stateClass}" id="rt-card-${idx}">
+      <div class="rt-card-header">
+        <span class="rt-card-title" title="${escHtml(item.article.title)}">${escHtml(item.article.title)}</span>
+        <span class="rt-card-count">${item.occurrences} occurrence${item.occurrences > 1 ? 's' : ''}${doneLabel}</span>
+        <div class="rt-card-btns">
+          <button class="rt-preview-btn" onclick="rtTogglePreview(${idx})">${item.previewOpen ? '▲ Hide full content' : '▼ Preview full content'}${isModified ? ' ✎' : ''}</button>
+          <button class="rt-btn-approve${item.approved ? ' active' : ''}" onclick="rtToggleApprove(${idx})" ${item.done ? 'disabled' : ''}>✓ Approve</button>
+          <button class="rt-btn-reject${item.rejected ? ' active' : ''}" onclick="rtToggleReject(${idx})" ${item.done ? 'disabled' : ''}>✕ Skip</button>
+        </div>
+      </div>
+      <div class="rt-card-body">
+        <div class="rt-snippets">${snippetsHtml}</div>
+        <div class="rt-custom-replace">
+          <label>Replacement for this article:</label>
+          <input type="text" value="${escHtml(item.customReplacement)}" placeholder="(removes term if blank)"
+            oninput="rtSetCustom(${idx}, this.value)" />
+        </div>
+        <div class="rt-preview-area${item.previewOpen ? ' open' : ''}" id="rt-preview-${idx}">
+          <label>Full content after replacement — <span>edit directly if needed</span>${isModified ? ' <span class="rt-preview-modified">(manually edited)</span>' : ''}</label>
+          <textarea class="rt-preview-textarea" oninput="rtSetCustomBody(${idx}, this.value)">${escHtml(previewBody)}</textarea>
+          ${isModified ? `<div style="display:flex;gap:8px;align-items:center"><button class="rt-preview-btn" onclick="rtResetCustomBody(${idx})">↩ Reset to auto-replace</button></div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function rtToggleApprove(idx) {
+  rtItems[idx].approved = !rtItems[idx].approved;
+  if (rtItems[idx].approved) rtItems[idx].rejected = false;
+  rtRender();
+  rtUpdateApplyBtn();
+}
+
+function rtToggleReject(idx) {
+  rtItems[idx].rejected = !rtItems[idx].rejected;
+  if (rtItems[idx].rejected) rtItems[idx].approved = false;
+  rtRender();
+  rtUpdateApplyBtn();
+}
+
+function rtSetCustom(idx, value) {
+  rtItems[idx].customReplacement = value;
+  // If preview is open and not manually overridden, refresh preview textarea live
+  if (rtItems[idx].previewOpen && rtItems[idx].customBody === null) {
+    const find = document.getElementById('rt-find').value.trim();
+    const ta = document.querySelector(`#rt-preview-${idx} .rt-preview-textarea`);
+    if (ta) ta.value = rtReplaceInBody(rtItems[idx].article.body || '', find, value);
+  }
+}
+
+function rtTogglePreview(idx) {
+  rtItems[idx].previewOpen = !rtItems[idx].previewOpen;
+  rtRender();
+}
+
+function rtSetCustomBody(idx, value) {
+  rtItems[idx].customBody = value;
+  // mark the preview btn with edit indicator without full re-render (avoid losing cursor)
+}
+
+function rtResetCustomBody(idx) {
+  rtItems[idx].customBody = null;
+  rtRender();
+}
+
+function rtApproveAll() {
+  rtItems.forEach(item => { if (!item.done) { item.approved = true; item.rejected = false; } });
+  rtRender();
+  rtUpdateApplyBtn();
+}
+
+function rtUpdateApplyBtn() {
+  const btn = document.getElementById('rt-apply-btn');
+  const count = rtItems.filter(i => i.approved && !i.done).length;
+  btn.disabled = count === 0 || !IS_LOCAL_SERVER;
+  btn.textContent = count > 0 ? `Apply to Intercom (${count})` : 'Apply to Intercom';
+}
+
+/** Replace all case-insensitive occurrences in HTML body, preserving HTML structure */
+function rtReplaceInBody(html, findTerm, replacement) {
+  // Replace in text nodes only by doing a global regex replace outside of HTML tags
+  const regex = new RegExp(
+    `(?<!<[^>]*)${findTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![^<]*>)`,
+    'gi'
+  );
+  return html.replace(regex, replacement);
+}
+
+async function rtApply() {
+  if (!IS_LOCAL_SERVER) { alert('Start server.js first: node server.js'); return; }
+  const find = document.getElementById('rt-find').value.trim();
+  const toApply = rtItems.filter(i => i.approved && !i.done);
+  if (!toApply.length) return;
+
+  const btn = document.getElementById('rt-apply-btn');
+  btn.disabled = true;
+  btn.textContent = `Applying…`;
+
+  for (const item of toApply) {
+    const idx = rtItems.indexOf(item);
+    try {
+      // Use manually edited full body if set, otherwise auto-replace
+      const newBody = item.customBody !== null
+        ? item.customBody
+        : rtReplaceInBody(item.article.body || '', find, item.customReplacement);
+      const res = await fetch('/api/terms/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articleId: item.article.id, newBody }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        rtItems[idx].done = true;
+        rtItems[idx].approved = false;
+        // Update local data too so re-searches reflect the change
+        item.article.body = newBody;
+      } else {
+        rtItems[idx].error = data.error || `HTTP ${res.status}`;
+      }
+    } catch (e) {
+      rtItems[idx].error = e.message;
+    }
+    rtRender();
+  }
+
+  rtUpdateApplyBtn();
+
+  const succeeded = rtItems.filter(i => i.done).length;
+  const failed    = rtItems.filter(i => i.error).length;
+  if (succeeded > 0 || failed > 0) {
+    const msg = succeeded > 0 && failed === 0
+      ? `✓ ${succeeded} article${succeeded > 1 ? 's' : ''} updated in Intercom`
+      : succeeded > 0
+        ? `✓ ${succeeded} updated · ✗ ${failed} failed`
+        : `✗ ${failed} article${failed > 1 ? 's' : ''} failed to update`;
+    rtShowToast(msg, failed === 0 ? 'success' : 'error');
+  }
+}
+
+// ─── Page tab switching ──────────────────────────────────────────────────────
+
+let histDashLoaded = false;
+
+function switchPageTab(tab) {
+  document.getElementById('tab-articles').style.display  = tab === 'articles'  ? '' : 'none';
+  document.getElementById('tab-dashboard').style.display = tab === 'dashboard' ? '' : 'none';
+  document.getElementById('ptab-articles').classList.toggle('active',  tab === 'articles');
+  document.getElementById('ptab-dashboard').classList.toggle('active', tab === 'dashboard');
+  if (tab === 'dashboard' && !histDashLoaded) {
+    histDashLoaded = true;
+    loadHistoryDashboard();
+  }
+}
+
+// ─── History dashboard ───────────────────────────────────────────────────────
+
+function histFmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.includes('T') ? iso : iso + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function histHealthScore(r) {
+  return r.totalArticles > 0 ? Math.round(r.ok / r.totalArticles * 100) : 0;
+}
+
+async function loadHistoryDashboard() {
+  try {
+    const res = await fetch(IS_LOCAL_SERVER ? '/api/history' : 'results/history.json');
+    const data = await res.json();
+    const runs = IS_LOCAL_SERVER ? (data.history || []) : (Array.isArray(data) ? data : []);
+
+    document.getElementById('hist-loading').style.display = 'none';
+
+    if (runs.length === 0) {
+      document.getElementById('hist-empty').style.display = 'block';
+      return;
+    }
+    document.getElementById('hist-content').style.display = 'block';
+
+    const latest = runs[runs.length - 1];
+    const prev   = runs.length > 1 ? runs[runs.length - 2] : null;
+    const prevLabel = prev ? `prev – ${histFmtDate(prev.runAt || prev.date)}` : 'first run';
+
+    function mkDelta(curr, prevVal, higherIsBetter) {
+      if (prev === null) return { text: 'first run', cls: 'hist-delta-flat' };
+      const d = curr - prevVal;
+      if (d === 0) return { text: `no change (${prevLabel})`, cls: 'hist-delta-flat' };
+      const good = higherIsBetter ? d > 0 : d < 0;
+      const sign = d > 0 ? '+' : '';
+      return { text: `${sign}${d} vs ${prevLabel}`, cls: good ? 'hist-delta-up' : 'hist-delta-down' };
+    }
+
+    const latestScore = histHealthScore(latest);
+    const prevScore   = prev ? histHealthScore(prev) : null;
+    const scoreDelta  = mkDelta(latestScore, prevScore, true);
+
+    const cards = [
+      { label: 'Health score', value: latestScore + '%', delta: scoreDelta, bar: latestScore },
+      { label: 'Clean articles', value: latest.ok, delta: mkDelta(latest.ok, prev?.ok, true) },
+      { label: 'Grammar issues', value: latest.withGrammarIssues ?? '—', delta: prev ? mkDelta(latest.withGrammarIssues||0, prev.withGrammarIssues||0, false) : {text:'first run',cls:'hist-delta-flat'} },
+      { label: 'Discrepancies', value: latest.withDiscrepancies ?? '—', delta: prev ? mkDelta(latest.withDiscrepancies||0, prev.withDiscrepancies||0, false) : {text:'first run',cls:'hist-delta-flat'} },
+      { label: 'Broken links', value: latest.withBrokenLinks ?? '—', delta: prev ? mkDelta(latest.withBrokenLinks||0, prev.withBrokenLinks||0, false) : {text:'first run',cls:'hist-delta-flat'} },
+      { label: '3rd-party', value: latest.withThirdPartyIssues ?? '—', delta: prev ? mkDelta(latest.withThirdPartyIssues||0, prev.withThirdPartyIssues||0, false) : {text:'first run',cls:'hist-delta-flat'} },
+    ];
+
+    const cardsEl = document.getElementById('hist-cards');
+    cardsEl.innerHTML = cards.map(c => `
+      <div class="hist-card">
+        <div class="hist-card-label">${c.label}</div>
+        <div class="hist-card-value">${c.value}</div>
+        <div class="hist-card-delta ${c.delta.cls}">${c.delta.cls === 'hist-delta-up' ? '▲' : c.delta.cls === 'hist-delta-down' ? '▼' : '–'} ${c.delta.text}</div>
+        ${c.bar != null ? `<div class="hist-score-bar"><div class="hist-score-fill" style="width:${c.bar}%"></div></div>` : ''}
+      </div>`).join('');
+
+    // Load Chart.js lazily
+    if (!window.Chart) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
+        s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const labels = runs.map(r => histFmtDate(r.runAt || r.date));
+    const gridC  = 'rgba(255,255,255,0.06)';
+    const tickC  = '#8892a4';
+    const baseOpts = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: tickC, font: { size: 10 }, maxRotation: 45 }, grid: { color: gridC } },
+        y: { ticks: { color: tickC, font: { size: 10 } }, grid: { color: gridC } },
+      }
+    };
+
+    // Health score chart
+    new Chart(document.getElementById('hist-health-chart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{ data: runs.map(histHealthScore), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
+          borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#10b981', fill: true, tension: 0.3, pointStyle: 'circle' }]
+      },
+      options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, min: 0, max: 100, ticks: { color: tickC, font: { size: 10 }, callback: v => v + '%' } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.parsed.y + '%' } } } }
+    });
+
+    // Donut
+    const donutColors  = ['#378ADD','#ef4444','#f97316','#10b981'];
+    const donutLabels  = ['Grammar','Discrepancies','Broken links','3rd-party'];
+    const donutData    = [
+      latest.withGrammarIssues || 0, latest.withDiscrepancies || 0,
+      latest.withBrokenLinks   || 0, latest.withThirdPartyIssues || 0,
+    ];
+    new Chart(document.getElementById('hist-donut-chart'), {
+      type: 'doughnut',
+      data: { labels: donutLabels, datasets: [{ data: donutData, backgroundColor: donutColors, borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed } } } }
+    });
+    const dLeg = document.getElementById('hist-donut-legend');
+    donutLabels.forEach((l,i) => {
+      dLeg.innerHTML += `<div class="hist-legend-item"><span class="hist-legend-dot" style="background:${donutColors[i]}"></span>${l} — <strong>${donutData[i]}</strong></div>`;
+    });
+
+    // Trend lines
+    const trendSeries = [
+      { label: 'Grammar',      key: 'withGrammarIssues',     color: '#378ADD', dash: [] },
+      { label: 'Disc.',        key: 'withDiscrepancies',     color: '#ef4444', dash: [5,3] },
+      { label: 'Links',        key: 'withBrokenLinks',       color: '#f97316', dash: [2,2] },
+      { label: '3P',           key: 'withThirdPartyIssues',  color: '#10b981', dash: [7,3] },
+      { label: 'Contradictions', key: 'withContradictions',  color: '#a78bfa', dash: [4,4] },
+    ];
+    const tLeg = document.getElementById('hist-trend-legend');
+    trendSeries.forEach(s => {
+      tLeg.innerHTML += `<div class="hist-legend-item"><span class="hist-legend-dot" style="background:${s.color}"></span>${s.label}</div>`;
+    });
+    new Chart(document.getElementById('hist-trend-chart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: trendSeries.map(s => ({
+          label: s.label, data: runs.map(r => r[s.key] || 0),
+          borderColor: s.color, borderWidth: 2, borderDash: s.dash,
+          pointRadius: 2.5, pointBackgroundColor: s.color,
+          fill: false, tension: 0.3, pointStyle: 'circle'
+        }))
+      },
+      options: baseOpts,
+    });
+
+    // History table
+    const tbody = document.getElementById('hist-tbody');
+    tbody.innerHTML = [...runs].reverse().map(r => {
+      const score = histHealthScore(r);
+      const badgeCls = score >= 75 ? 'hist-badge-ok' : score >= 55 ? 'hist-badge-warn' : 'hist-badge-bad';
+      const dur = r.durationSeconds != null
+        ? (Math.floor(r.durationSeconds / 60) + 'm ' + (r.durationSeconds % 60) + 's') : '—';
+      return `<tr>
+        <td style="font-weight:500">${histFmtDate(r.runAt || r.date)}</td>
+        <td>${r.totalArticles ?? '—'}</td>
+        <td><span class="hist-badge ${badgeCls}">${score}%</span></td>
+        <td style="color:${(r.withGrammarIssues||0)>15?'#ef4444':'inherit'}">${r.withGrammarIssues ?? '—'}</td>
+        <td style="color:${(r.withDiscrepancies||0)>10?'#ef4444':'inherit'}">${r.withDiscrepancies ?? '—'}</td>
+        <td style="color:${(r.withBrokenLinks||0)>8?'#ef4444':'inherit'}">${r.withBrokenLinks ?? '—'}</td>
+        <td>${r.withThirdPartyIssues ?? '—'}</td>
+        <td>${r.withContradictions ?? '—'}</td>
+        <td style="color:var(--text-muted)">${dur}</td>
+      </tr>`;
+    }).join('');
+
+  } catch(e) {
+    document.getElementById('hist-loading').textContent = 'Could not load history: ' + e.message;
+  }
+}
+
+function rtShowToast(msg, type = 'success') {
+  const existing = document.getElementById('rt-toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = 'rt-toast';
+  el.className = `rt-toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.classList.add('fade-out'); setTimeout(() => el.remove(), 400); }, 3500);
+}
+</script>
+</body>
+</html>
